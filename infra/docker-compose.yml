@@ -1,0 +1,86 @@
+# 0단계: 로컬 전체 실행
+#   cp .env.example .env   # 값 채우기(노션 참고)
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# 값은 레포 루트의 .env를 env_file로 컨테이너에 그대로 넘긴다(compose 변수 치환은 쓰지 않는다).
+name: trupass
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18
+    env_file: ../.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mock-merchant:
+    build:
+      context: ..
+      dockerfile: mock-merchant/Dockerfile
+    image: trupass-mock-merchant:local
+    ports:
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9001/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 40s
+      retries: 5
+
+  core:
+    build:
+      context: ..
+      dockerfile: core/Dockerfile
+    image: trupass-core:local
+    env_file: ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      TRUPASS_AUDIT_LOCAL_DIR: /app/data/audit
+    ports:
+      - "8080:8080"
+    volumes:
+      - audit-data:/app/data/audit
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-merchant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 60s
+      retries: 5
+
+  agent:
+    build:
+      context: ../agent
+    image: trupass-agent:local
+    env_file: ../.env
+    ports:
+      - "8001:8001"
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health', timeout=2).status == 200 else 1)"
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+
+volumes:
+  postgres-data:
+  audit-data:

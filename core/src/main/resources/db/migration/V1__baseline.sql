@@ -1,0 +1,3 @@
+-- Baseline. 의도적으로 비워 둔다.
+-- checkout / checkout_step / ledger 등 테이블 설계는 담당자가 V2__*.sql로 별도 PR에서 추가한다.
+-- pgvector 확장(CREATE EXTENSION vector)은 RAG 담당자가 필요해질 때 추가한다.

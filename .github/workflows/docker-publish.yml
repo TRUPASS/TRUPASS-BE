@@ -1,0 +1,76 @@
+name: Docker Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: core
+            context: .
+            dockerfile: core/Dockerfile
+          - service: mock-merchant
+            context: .
+            dockerfile: mock-merchant/Dockerfile
+          - service: agent
+            context: agent
+            dockerfile: agent/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      # GHCR 경로는 소문자여야 한다. 레포 소유자(org)가 바뀌어도 자동으로 따라간다. 예: ghcr.io/trupass/trupass-core
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/trupass-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # 1단계(EC2) 배포 자리. EC2 준비 후 주석을 풀고 secrets(EC2_HOST, EC2_USER, EC2_SSH_KEY)를 등록한다.
+  # deploy:
+  #   needs: publish
+  #   runs-on: ubuntu-latest
+  #   environment: production
+  #   steps:
+  #     - uses: appleboy/ssh-action@<버전 고정>
+  #       with:
+  #         host: ${{ secrets.EC2_HOST }}
+  #         username: ${{ secrets.EC2_USER }}
+  #         key: ${{ secrets.EC2_SSH_KEY }}
+  #         script: |
+  #           cd /opt/trupass
+  #           export IMAGE_TAG=sha-${{ github.sha }}
+  #           docker compose -f docker-compose.prod.yml pull
+  #           docker compose -f docker-compose.prod.yml up -d

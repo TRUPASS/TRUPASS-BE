@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: trupass-mock-merchant
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: 9001
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+mock:
+  hold-ttl: 10m
+  timeout-delay: 30s

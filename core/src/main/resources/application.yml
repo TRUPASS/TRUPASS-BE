@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: trupass-core
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:trupass}
+    username: ${POSTGRES_USER:trupass}
+    password: ${POSTGRES_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# Spring Boot 기본 structured logging(JSON). MDC의 checkout_id가 필드로 함께 찍힌다.
+logging:
+  structured:
+    format:
+      console: ecs
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+
+# 환경 변수로 덮어쓴다: TRUPASS_ADAPTERS_MERCHANT, MOCK_MERCHANT_BASE_URL 등 (.env.example 참고)
+trupass:
+  adapters:
+    merchant: mock # mock | duffel
+    payment: mock # mock | toss
+    audit: localfile # localfile | s3
+  services:
+    mock-merchant-base-url: ${MOCK_MERCHANT_BASE_URL:http://localhost:9001}
+    agent-base-url: ${AGENT_BASE_URL:http://localhost:8001}
+  http:
+    connect-timeout: 2s
+    read-timeout: 5s
+  cors:
+    allowed-origins: http://localhost:5173
+  audit:
+    local-dir: ./data/audit
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+trupass:
+  cors:
+    # 예: https://trupass.vercel.app (쉼표로 여러 개)
+    allowed-origins: ${TRUPASS_CORS_ALLOWED_ORIGINS}

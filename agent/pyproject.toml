@@ -1,0 +1,61 @@
+[project]
+name = "trupass-agent"
+version = "0.1.0"
+description = "Trupass AI 여행 패키지 에이전트 (Google ADK + Gemini)"
+readme = "README.md"
+requires-python = ">=3.12"
+# 버전은 2026-11-10 기준 최신 GA로 고정한다.
+# pydantic은 AP2 SDK(e1ea56d)가 pydantic==2.12.5로 고정하고 있어 그 버전을 따른다.
+dependencies = [
+    "google-adk==2.14.0",
+    "google-genai==2.34.0", # google-adk 2.14.0이 google-genai<3을 요구한다.
+    "fastapi==0.162.2",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.16.2",
+    "httpx==0.28.1",
+    # AP2 Python SDK. PyPI의 `ap2`는 제3자 미러이므로 공식 GitHub 저장소를 커밋으로 고정해 설치한다.
+    "ap2",
+]
+
+[tool.uv.sources]
+ap2 = { git = "https://github.com/google-agentic-commerce/AP2.git", rev = "e1ea56db72a6385bce3e5c1112b3a56ce60acb43" }
+
+[dependency-groups]
+dev = [
+    # AP2 SDK가 pytest==9.0.2를 런타임 의존성으로 고정하고 있어 그 버전을 따른다.
+    "pytest==9.0.2",
+    "ruff==0.17.4",
+    "mypy==2.4.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trupass_agent"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["trupass_agent"]
+
+[[tool.mypy.overrides]]
+module = ["google.adk.*", "ap2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+# Starlette가 TestClient용으로 httpx2를 권장한다. 테스트 동작에는 영향이 없어 경고만 숨긴다.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
