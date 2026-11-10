@@ -8,9 +8,13 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-[*.{kt,kts}]
-ktlint_code_style = ktlint_official
-max_line_length = 140
+[*.java]
+# google-java-format 기준(2칸 들여쓰기, 100자). 포맷은 `./gradlew spotlessApply`로 맞춘다.
+indent_size = 2
+max_line_length = 100
+
+[*.gradle]
+indent_size = 4
 
 [*.py]
 max_line_length = 120

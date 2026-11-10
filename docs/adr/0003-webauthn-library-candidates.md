@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | Spring Security 패스키 지원 (`spring-security-webauthn`) | Spring Boot와 통합. 등록·로그인 플로우와 필터가 기본 제공됨 | 로그인 용도 중심이라 "Mandate 페이로드에 대한 서명 검증"에 맞출 수 있는지. 내부적으로 webauthn4j 사용 |
 | webauthn4j | 저수준 검증 API. challenge에 임의 데이터(Mandate 해시)를 넣고 검증하기 쉬움. Spring Security가 내부에서 사용 | 등록·저장소·challenge 관리는 직접 구현해야 함 |
-| Yubico `java-webauthn-server` | 성숙한 레퍼런스 구현. 문서와 테스트가 충실함 | `CredentialRepository` 구현 필요. Kotlin/Spring과 함께 쓴 사례 확인 |
+| Yubico `java-webauthn-server` | 성숙한 레퍼런스 구현. 문서와 테스트가 충실함 | `CredentialRepository` 구현 필요. Spring과 함께 쓴 사례 확인 |
 
 ## 결정에 필요한 기준
 

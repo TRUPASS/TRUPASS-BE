@@ -2,10 +2,10 @@
 # 빌드 컨텍스트는 레포 루트다: docker build -f mock-merchant/Dockerfile .
 FROM eclipse-temurin:25-jdk-noble AS build
 WORKDIR /workspace
-COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
-COPY core/build.gradle.kts ./core/
-COPY mock-merchant/build.gradle.kts ./mock-merchant/
+COPY core/build.gradle ./core/
+COPY mock-merchant/build.gradle ./mock-merchant/
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon :mock-merchant:dependencies > /dev/null
 COPY mock-merchant/src ./mock-merchant/src
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon :mock-merchant:bootJar -x test \
