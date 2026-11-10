@@ -1,0 +1,44 @@
+plugins {
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spotless) apply false
+}
+
+def javaVersion = libs.versions.java.get() as int
+def googleJavaFormatVersion = libs.versions.google.java.format.get()
+
+allprojects {
+    group = 'com.trupass'
+    version = '0.0.1-SNAPSHOT'
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'com.diffplug.spotless'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(javaVersion)
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // record 파라미터 이름을 런타임에 쓰므로(@ConfigurationProperties, @PathVariable) -parameters를 켠다.
+        options.compilerArgs.addAll(['-parameters', '-Xlint:all,-processing,-serial,-try'])
+    }
+
+    // `./gradlew build`의 check 단계에서 spotlessCheck가 포맷 위반을 잡는다. 자동 수정은 `./gradlew spotlessApply`.
+    spotless {
+        java {
+            target 'src/**/*.java'
+            googleJavaFormat(googleJavaFormatVersion)
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}
