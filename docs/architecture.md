@@ -13,8 +13,8 @@
 
 | 서비스 | 언어 | 포트 | 역할 |
 | --- | --- | --- | --- |
-| `core` | Kotlin · Spring Boot | 8080 | 메인 API, Saga 오케스트레이터, 원장, 결제, agent용 내부 도구 API |
-| `mock-merchant` | Kotlin · Spring Boot | 9001 | 판매자 A(항공)·B(숙소)·C(체험) 흉내. 실패 주입·멱등 처리 |
+| `core` | Java · Spring Boot | 8080 | 메인 API, Saga 오케스트레이터, 원장, 결제, agent용 내부 도구 API |
+| `mock-merchant` | Java · Spring Boot | 9001 | 판매자 A(항공)·B(숙소)·C(체험) 흉내. 실패 주입·멱등 처리 |
 | `agent` | Python · Google ADK · FastAPI | 8001 | 자연어 → 패키지 2~3안. 외부 API는 직접 부르지 않고 core만 호출 |
 | `postgres` | pgvector/pgvector | 5432 | Saga 상태·원장. 나중에 TourAPI RAG 임베딩 |
 
@@ -57,7 +57,7 @@ HOLD × 판매자 수     (재고만 잡는다. 돈은 움직이지 않는다)
 
 ```
 com.trupass.core
-├── domain/          순수 도메인. JDK·Kotlin 표준 라이브러리만 사용
+├── domain/          순수 도메인(Java record). JDK만 사용
 │   ├── common/      Money(Long + 통화 코드)
 │   ├── checkout/    CheckoutId, MerchantId, IdempotencyKey
 │   ├── saga/        SagaState, SagaStepType, CheckoutStatus
@@ -69,19 +69,21 @@ com.trupass.core
 ├── application/
 │   └── port/        MerchantPort, PaymentPort, AuditPort, SagaStatePort
 ├── adapter/
-│   ├── in/web/      REST 컨트롤러, 웹훅 수신, /internal/tools (agent용)
-│   └── out/         merchant/{mock,duffel}, payment/{mockpg,toss}, audit/{localfile,s3}, persistence/jpa
+│   ├── inbound/web/ REST 컨트롤러, 웹훅 수신, /internal/tools (agent용)
+│   └── outbound/    merchant/{mock,duffel}, payment/{mockpg,toss}, audit/{localfile,s3}, persistence/jpa
 └── config/          어댑터 선택, RestClient 공통 설정, CORS, OpenAPI
 ```
 
 ### 경계 강제(ArchUnit)
 
-`core/src/test/kotlin/com/trupass/core/ArchitectureTest.kt`가 `./gradlew build`에서 다음을 검사한다.
+`core/src/test/java/com/trupass/core/ArchitectureTest.java`가 `./gradlew build`에서 다음을 검사한다.
 
-- `domain`은 `domain`·`java`·`kotlin` 패키지에만 의존한다(Spring·JPA·Jackson·외부 SDK 금지).
+- `domain`은 `domain`·`java` 패키지에만 의존한다(Spring·JPA·Jackson·외부 SDK 금지).
 - `domain`은 `application`·`adapter`·`config`를 모른다.
 - `application`은 `adapter`·`config`를 모른다.
-- `adapter.in`은 `adapter.out`을 직접 부르지 않는다.
+- `adapter.inbound`는 `adapter.outbound`를 직접 부르지 않는다.
+
+`in`은 Java 예약어라 패키지 이름으로 쓸 수 없어서 `inbound`/`outbound`로 이름을 붙였다.
 
 ## 공통 HTTP 클라이언트
 
@@ -89,7 +91,7 @@ com.trupass.core
 
 - 연결·읽기 타임아웃 기본값: `trupass.http.connect-timeout`(2s), `trupass.http.read-timeout`(5s)
 - `CheckoutContextInterceptor`: MDC `checkout_id`를 `X-Checkout-Id` 헤더로 전파하고 호출 결과를 구조화 로그로 남긴다.
-- `Idempotency-Key`: `restClient.post()...idempotencyKey(key)` 확장 함수
+- `Idempotency-Key`: `restClient.post()...headers(IdempotencyKeys.header(key))`
 
 로그는 Spring Boot 기본 structured logging(ECS JSON)으로 남기고, MDC `checkout_id`가 필드로 함께 찍힌다.
 

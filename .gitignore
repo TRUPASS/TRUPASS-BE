@@ -3,12 +3,11 @@
 .env.*
 !.env.example
 
-# --- Kotlin / Gradle ---
+# --- Java / Gradle ---
 .gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
-.kotlin/
-# IntelliJ 출력 폴더만 무시한다(core의 adapter/out 패키지는 무시하면 안 된다).
+# IntelliJ 출력 폴더만 무시한다(core의 adapter/outbound 같은 소스 패키지는 무시하면 안 된다).
 /out/
 /*/out/
 *.class

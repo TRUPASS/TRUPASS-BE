@@ -4,8 +4,8 @@ Trupass 백엔드 모노레포 — "말 한 번으로 떠나고, 결제는 서�
 
 | 디렉터리 | 내용 |
 | --- | --- |
-| `core/` | Kotlin · Spring Boot 메인 API, Saga, 원장, 결제 (포트 8080) |
-| `mock-merchant/` | Kotlin · Spring Boot Mock 판매자 A·B·C, 실패 주입·멱등 처리 (포트 9001) |
+| `core/` | Java · Spring Boot 메인 API, Saga, 원장, 결제 (포트 8080) |
+| `mock-merchant/` | Java · Spring Boot Mock 판매자 A·B·C, 실패 주입·멱등 처리 (포트 9001) |
 | `agent/` | Python · Google ADK · FastAPI AI 에이전트 (포트 8001) |
 | `infra/` | docker compose(로컬·운영 초안), Caddy |
 | `docs/` | [아키텍처](docs/architecture.md), [ADR](docs/adr) |
@@ -86,7 +86,7 @@ curl -i -X POST localhost:9001/merchants/A/holds -H 'Content-Type: application/j
 ## 개발
 
 ```bash
-# Kotlin: 빌드 + 테스트 + ktlint + ArchUnit (Testcontainers 때문에 Docker가 켜져 있어야 한다)
+# Java: 빌드 + 테스트 + 포맷 검사(Spotless, google-java-format) + ArchUnit (Testcontainers 때문에 Docker가 켜져 있어야 한다)
 ./gradlew build
 
 # 포맷 자동 수정

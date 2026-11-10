@@ -32,7 +32,7 @@ jobs:
             gradle: &gradle
               - 'gradle/**'
               - 'gradlew'
-              - '*.gradle.kts'
+              - '*.gradle'
               - '.editorconfig'
               - '.github/workflows/ci.yml'
             core:

@@ -1,4 +1,4 @@
-# ADR-0001: 백엔드 스택 — Kotlin/Spring Boot core + Python agent
+# ADR-0001: 백엔드 스택 — Java/Spring Boot core + Python agent
 
 - 상태: accepted
 - 날짜: 2026-11-10
@@ -12,11 +12,11 @@ Trupass 백엔드는 성격이 다른 두 가지 일을 한다.
 
 ## 결정
 
-- **core**와 **mock-merchant**는 Kotlin + Spring Boot로 만든다.
-  - Gradle Kotlin DSL 멀티모듈, 버전 카탈로그(`gradle/libs.versions.toml`)
-  - JDK 25(LTS), Spring Boot 4.1.2, Kotlin 2.4.21
+- **core**와 **mock-merchant**는 Java + Spring Boot로 만든다. Kotlin은 쓰지 않는다(빌드 스크립트도 Groovy DSL).
+  - Gradle(Groovy DSL) 멀티모듈, 버전 카탈로그(`gradle/libs.versions.toml`)
+  - JDK 25(LTS), Spring Boot 4.1.2. 도메인 타입은 Java record로 만든다.
   - Spring Web MVC, Validation, Actuator, Data JPA + PostgreSQL, Flyway, springdoc-openapi
-  - 테스트: JUnit 5, Testcontainers(PostgreSQL), ArchUnit. 포맷: Spotless + ktlint
+  - 테스트: JUnit 5, Testcontainers(PostgreSQL), ArchUnit. 포맷: Spotless + google-java-format 2.0.0
 - **agent**는 Python으로 만든다.
   - uv, Python 3.12 이상(로컬·이미지는 3.14)
   - Google ADK(`google-adk`), Gemini(`google-genai`), FastAPI, pydantic v2, httpx
