@@ -8,7 +8,9 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 .kotlin/
-out/
+# IntelliJ 출력 폴더만 무시한다(core의 adapter/out 패키지는 무시하면 안 된다).
+/out/
+/*/out/
 *.class
 *.log
 hs_err_pid*

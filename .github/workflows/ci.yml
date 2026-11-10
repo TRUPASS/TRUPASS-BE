@@ -81,7 +81,7 @@ jobs:
         working-directory: agent
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3  # v10 메이저 태그가 없어 정확한 버전으로 고정
         with:
           version: '0.13.7'
           enable-cache: true
