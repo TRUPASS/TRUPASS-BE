@@ -1,0 +1,27 @@
+# 1단계 초안. API_DOMAIN(예: api.trupass.app)의 DNS A 레코드를 EC2에 연결하면 Caddy가 TLS 인증서를 자동 발급한다.
+{
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# agent 전용 내부 도구 API와 actuator(헬스 제외)는 외부에 노출하지 않는다.
+	@internal path /internal/* /actuator/*
+	@health path /actuator/health /actuator/health/*
+	handle @health {
+		reverse_proxy core:8080
+	}
+	handle @internal {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy core:8080
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
