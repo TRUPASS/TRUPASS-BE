@@ -15,7 +15,9 @@ permissions:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # job 단위 permissions는 워크플로 권한을 덮어쓰므로 contents: read도 다시 적어야 private 레포를 checkout할 수 있다.
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       core: ${{ steps.filter.outputs.core }}
