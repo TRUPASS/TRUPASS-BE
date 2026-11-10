@@ -57,7 +57,7 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
       # Testcontainers(PostgreSQL)는 러너의 Docker를 쓴다.
-      - run: ./gradlew :spotlessCheck :core:build
+      - run: ./gradlew :core:build  # build의 check 단계에 spotlessCheck가 포함된다
 
   mock-merchant:
     needs: changes
@@ -70,7 +70,7 @@ jobs:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew :spotlessCheck :mock-merchant:build
+      - run: ./gradlew :mock-merchant:build
 
   agent:
     needs: changes
