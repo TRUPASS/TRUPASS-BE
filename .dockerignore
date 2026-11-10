@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.idea
+**/build
+**/.kotlin
+agent
+infra
+docs
+.env
+*.md

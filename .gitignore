@@ -1,0 +1,34 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Kotlin / Gradle ---
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.kotlin/
+out/
+*.class
+*.log
+hs_err_pid*
+
+# core 로컬 감사 로그(localfile 어댑터)
+data/
+
+# --- Python / uv ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
