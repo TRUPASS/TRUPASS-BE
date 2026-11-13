@@ -135,7 +135,7 @@ payment/
 | `payment` | `PaymentWebhookController`(`/webhooks/payments`), `PaymentService`, `PaymentClient` → `MockPgClient` / `TossPaymentClient`, `PaymentErrorCode` | Payment 엔티티, client 구현 |
 | `mandate` | `MandateService`, `AuditClient` → `LocalFileAuditClient` / `S3AuditClient`, `MandateErrorCode` | 서명 검증([ADR-0003](adr/0003-webauthn-library-candidates.md)), client 구현 |
 | `ledger` | (비어 있음) | 원장 엔티티·service |
-| `user` | `User` 엔티티, `UserService`, `UserController`(`GET /users/me`) | |
+| `user` | `User` 엔티티(Google 계정 + 닉네임·출생 연도·성별·여행 관심사·약관 동의), `UserService`, `UserController`(`GET /users/me`, `PUT /users/me/profile`) | |
 | `auth` | `AuthController`(`/auth/google`, `/auth/refresh`, `/auth/logout`), `AuthService`, `RefreshTokenService`, `GoogleAuthClient` → `GoogleIdTokenClient` | |
 
 아직 구현하지 않은 client 메서드는 `UnsupportedOperationException`을 던지고, 전역 예외 처리가 이를 `501 COMMON501`로 바꾼다.
@@ -161,15 +161,37 @@ payment/
 FE ── Google Identity Services ──▶ ID 토큰(credential)
 FE ── POST /auth/google {idToken} ──▶ core: Google 공개키로 서명·aud·iss·만료 검증
                                          → 사용자 찾기/가입 → access token(JWT 30분) + refresh token(14일)
+                                         + user(profileCompleted 포함) + newUser
+   user.profileCompleted = false → FE 회원 정보 입력(/signup)
+FE ── PUT /users/me/profile {nickname, birthYear, gender, interests, agreements} ──▶ 저장, profileCompleted = true
 FE ── Authorization: Bearer {accessToken} ──▶ 인증이 필요한 API
 FE ── POST /auth/refresh {refreshToken} ──▶ 새 토큰 쌍 (refresh token은 1회용, 재사용되면 그 사용자 것 전부 폐기)
 FE ── POST /auth/logout {refreshToken} ──▶ refresh token 폐기
 ```
 
 - 열린 경로: `/auth/**`, `/internal/**`(agent 전용, 운영은 Caddy가 차단), `/webhooks/**`, health, Swagger. 나머지는 모두 로그인이 필요하다.
-- controller에서 로그인 사용자는 `@LoginUserId Long userId`로 받는다.
+- controller에서 로그인 사용자는 `@LoginUserId Long userId`로 받는다. OpenAPI 스펙에는 나오지 않는다(`SwaggerConfig`).
 - 토큰이 없으면 `COMMON401`, 틀리거나 만료되면 `COMMON401_1`.
-- 설정: `GOOGLE_OAUTH_CLIENT_IDS`(Google OAuth 클라이언트 ID), `TRUPASS_JWT_SECRET`(32바이트 이상, prod 필수).
+- 설정: `GOOGLE_OAUTH_CLIENT_IDS`(Google OAuth 클라이언트 ID), `TRUPASS_JWT_SECRET`(32바이트 이상, prod 필수), 운영은 `TRUPASS_CORS_ALLOWED_ORIGINS`(FE 주소).
+
+### 회원 정보 입력 (가입 2단계)
+
+Google 로그인 때 계정이 먼저 생기고(`newUser = true`), FE 회원 정보 입력 화면에서 `PUT /users/me/profile`을 보내면 가입을 마친다.
+회원 정보 입력 화면으로 보낼지는 `newUser`가 아니라 **`user.profileCompleted`** 로 정한다. `newUser`는 처음 한 번만 true라서, 입력을 마치지 않고 나갔다가 다시 로그인한 사람을 놓친다.
+
+| 칸 (FE 화면) | 필드 | 규칙 |
+| --- | --- | --- |
+| 이메일 | — | Google 계정의 것. 받지 않는다 |
+| 닉네임 | `nickname` | 필수, 앞뒤 공백을 지우고 2~12자, 제어 문자 불가 |
+| 출생 연도 | `birthYear` | 필수, 1900 ~ 올해 (올해보다 뒤면 `USER400_1`) |
+| 성별 (선택) | `gender` | `FEMALE` · `MALE`, "선택 안 함"은 `null`(또는 생략) |
+| 여행 관심사 (최대 3개) | `interests` | 0~3개. `FOOD` 미식·맛집, `SIGHTSEEING` 관광·명소, `SHOPPING` 쇼핑, `RELAXATION` 휴양·온천, `CULTURE` 문화·예술, `ARCHITECTURE` 건축·도시 산책, `NATURE` 자연·야외 활동, `THEME_PARK` 테마파크·체험 |
+| 약관 | `agreements` | `termsOfService`(필수) · `privacyCollection`(필수)은 true, `marketing`(선택, 여행 혜택·알림 수신) |
+
+- 칸이 틀리면 `COMMON400_1`이고 `result`에 `{칸: 메시지}`가 담긴다(예: `{"agreements.termsOfService": "필수 약관에 동의해야 합니다."}`).
+- 같은 API로 설정에서 고친다(전체를 다시 보낸다). 같은 값을 다시 보내도 결과가 같고, `profileCompleted`는 처음 저장한 뒤로 계속 true다.
+- 약관은 `user_agreements`에 처음 동의한 시각과 함께 남긴다. 선택 약관(`marketing`)을 false로 보내면 동의를 거둔 것으로 보고 지운다.
+- `GET /users/me`와 로그인 응답의 `user`는 같은 형식(`Me`)이고, 위 값과 `agreements`, `profileCompleted`를 함께 준다.
 
 ## 4. 왜 이 구조인가
 

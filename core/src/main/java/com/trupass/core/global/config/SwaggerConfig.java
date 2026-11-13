@@ -1,10 +1,12 @@
 package com.trupass.core.global.config;
 
+import com.trupass.core.global.security.LoginUserId;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +17,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class SwaggerConfig {
   private static final String BEARER = "bearerAuth";
+
+  static {
+    // @LoginUserId는 access token에서 채운다. 스펙에 요청 파라미터(userId)로 나오면 FE 생성 타입이 userId를 요구하게 된다.
+    SpringDocUtils.getConfig().addAnnotationsToIgnore(LoginUserId.class);
+  }
 
   @Bean
   OpenAPI trupassOpenApi() {

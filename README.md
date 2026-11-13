@@ -134,6 +134,7 @@ cd tools/google-login-test && python3 -m http.server 5173 --bind 127.0.0.1
 ```
 
 4. Chrome에서 http://localhost:5173 → 클라이언트 ID 입력 → 구글 버튼으로 로그인 → `/users/me`, `/auth/refresh`, `/auth/logout`을 눌러 본다.
+5. 처음 로그인한 계정은 회원 정보 입력 전(`profileCompleted: false`)이다. 3번 칸의 본문으로 `PUT /users/me/profile`을 보내면 가입을 마친다. 칸 규칙은 [아키텍처 문서의 "회원 정보 입력"](docs/architecture.md#회원-정보-입력-가입-2단계)에 있다.
 
 ## 웹훅 받기 (ngrok / Cloudflare Tunnel)
 

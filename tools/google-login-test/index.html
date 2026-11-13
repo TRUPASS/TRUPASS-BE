@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Google 로그인 테스트</title>
-  <!-- 로컬 개발용 테스트 페이지. FE 없이 core의 구글 로그인 흐름(/auth/google → /users/me → /auth/refresh → /auth/logout)을 확인한다. -->
+  <!-- 로컬 개발용 테스트 페이지. FE 없이 core의 구글 로그인 흐름(/auth/google → /users/me/profile → /users/me → /auth/refresh → /auth/logout)을 확인한다. -->
   <script src="https://accounts.google.com/gsi/client" async></script>
   <style>
     :root {
@@ -23,8 +23,9 @@
     section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     h2 { font-size: 15px; margin: 0 0 12px; }
     label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
-    input { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+    input, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
       background: transparent; color: var(--text); font: inherit; }
+    textarea { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card);
       color: var(--text); font: inherit; cursor: pointer; }
@@ -75,6 +76,14 @@
   </section>
 
   <section>
+    <h2>3. 회원 정보 입력</h2>
+    <p class="status">FE 회원 정보 입력 화면(/signup)이 보내는 값입니다. 로그인 응답의 <code>user.profileCompleted</code>가 false면 FE는 이 화면으로 보냅니다.</p>
+    <label for="profileBody">PUT /users/me/profile 본문 (gender: FEMALE | MALE | null, interests: 최대 3개)</label>
+    <textarea id="profileBody" rows="10" spellcheck="false"></textarea>
+    <div class="row"><button class="primary" id="profile" disabled>PUT /users/me/profile</button></div>
+  </section>
+
+  <section>
     <h2>요청 기록 (최신이 위)</h2>
     <div id="log"></div>
   </section>
@@ -94,9 +103,20 @@
 
   const short = (t) => (t ? `${t.slice(0, 24)}…${t.slice(-8)} (${t.length}자)` : "-");
 
+  // 관심사: FOOD 미식·맛집, SIGHTSEEING 관광·명소, SHOPPING 쇼핑, RELAXATION 휴양·온천,
+  //         CULTURE 문화·예술, ARCHITECTURE 건축·도시 산책, NATURE 자연·야외 활동, THEME_PARK 테마파크·체험
+  $("profileBody").value = JSON.stringify({
+    nickname: "도쿄여행자",
+    birthYear: 1994,
+    gender: "FEMALE",
+    interests: ["CULTURE", "ARCHITECTURE"],
+    agreements: { termsOfService: true, privacyCollection: true, marketing: false },
+  }, null, 2);
+
   function render() {
     $("tAccess").textContent = short(state.accessToken);
     $("tRefresh").textContent = short(state.refreshToken);
+    $("profile").disabled = !state.accessToken;
     $("me").disabled = !state.accessToken;
     $("refresh").disabled = !state.refreshToken;
     $("logout").disabled = !state.refreshToken;
@@ -156,8 +176,12 @@
     if (status === 200 && json?.isSuccess) {
       state.accessToken = json.result.tokens.accessToken;
       state.refreshToken = json.result.tokens.refreshToken;
-      $("tUser").textContent = `${json.result.user.userId} (${json.result.newUser ? "신규 가입" : "기존 사용자"})`;
-      $("status").textContent = `로그인 성공: ${json.result.user.email}`;
+      const { user, newUser } = json.result;
+      $("tUser").textContent =
+        `${user.userId} (${newUser ? "신규 가입" : "기존 사용자"}, 회원 정보 ${user.profileCompleted ? "입력 완료" : "입력 전"})`;
+      $("status").textContent = user.profileCompleted
+        ? `로그인 성공: ${user.email}`
+        : `로그인 성공: ${user.email} — 회원 정보 입력 전입니다. 아래 3번에서 PUT /users/me/profile 을 보내세요.`;
     } else {
       $("status").textContent = "로그인 실패. 아래 요청 기록의 code를 확인하세요.";
     }
@@ -179,6 +203,18 @@
   });
 
   $("me").addEventListener("click", () => call("GET", "/users/me", { auth: true }));
+
+  $("profile").addEventListener("click", async () => {
+    let body;
+    try { body = JSON.parse($("profileBody").value); } catch (e) {
+      log("PUT /users/me/profile", 0, `본문이 JSON 형식이 아닙니다: ${e.message}`);
+      return;
+    }
+    const { status, json } = await call("PUT", "/users/me/profile", { body, auth: true });
+    if (status === 200 && json?.isSuccess) {
+      $("status").textContent = `회원 정보 저장: ${json.result.nickname} (profileCompleted=${json.result.profileCompleted})`;
+    }
+  });
 
   $("refresh").addEventListener("click", async () => {
     const { status, json } = await call("POST", "/auth/refresh", { body: { refreshToken: state.refreshToken } });

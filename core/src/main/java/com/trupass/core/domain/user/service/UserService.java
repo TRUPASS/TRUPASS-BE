@@ -8,6 +8,7 @@ import com.trupass.core.domain.user.repository.UserRepository;
 import com.trupass.core.global.apiPayload.exception.GeneralException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.Year;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,9 +43,29 @@ public class UserService {
 
   @Transactional(readOnly = true)
   public UserResDTO.Me getMe(Long userId) {
+    return UserResDTO.Me.from(findUser(userId));
+  }
+
+  /** 회원 정보 입력·수정. 처음 저장하면 회원 정보 입력을 마친 것으로 기록한다. 같은 값을 다시 보내도 결과가 같다. */
+  @Transactional
+  public UserResDTO.Me updateProfile(Long userId, UserReqDTO.Profile request) {
+    if (request.birthYear() > Year.now(clock).getValue()) {
+      throw new GeneralException(UserErrorCode.INVALID_BIRTH_YEAR);
+    }
+    User user = findUser(userId);
+    user.updateProfile(
+        request.nickname(),
+        request.birthYear(),
+        request.gender(),
+        request.interests(),
+        request.agreements().agreedTerms(),
+        clock.instant());
+    return UserResDTO.Me.from(user);
+  }
+
+  private User findUser(Long userId) {
     return userRepository
         .findById(userId)
-        .map(UserResDTO.Me::from)
         .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
   }
 }
