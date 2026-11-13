@@ -17,9 +17,11 @@ import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.MapKeyEnumerated;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,6 +34,8 @@ import java.util.Set;
 @Entity
 @Table(name = "users")
 public class User {
+  /** 탈퇴하면 google_sub를 이 접두어 + 회원 ID로 바꿔 Google 계정과의 연결을 끊는다(Google sub는 숫자다). */
+  static final String WITHDRAWN_SUB_PREFIX = "withdrawn:";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -79,6 +83,10 @@ public class User {
   @Column(name = "profile_completed_at")
   private Instant profileCompletedAt;
 
+  /** 탈퇴한 시각. 탈퇴하면 개인정보를 지우고 이 값을 채운다. */
+  @Column(name = "withdrawn_at")
+  private Instant withdrawnAt;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
@@ -120,14 +128,16 @@ public class User {
    * <p>약관은 이미 동의한 것이면 처음 동의한 시각을 그대로 두고, 선택 약관에서 빠지면 동의를 거둔 것으로 보고 지운다. 필수 약관은 빠질 수 없다.
    *
    * @param agreedTerms 이번에 동의한 약관 전부
+   * @return 이번에 바뀐 약관 동의(새로 동의했거나 거둔 것). 같은 값을 다시 보내면 비어 있다
    */
-  public void updateProfile(
+  public List<AgreementChange> updateProfile(
       String nickname,
       int birthYear,
       Gender gender,
       Set<TravelInterest> interests,
       Set<TermsType> agreedTerms,
       Instant now) {
+    requireActive();
     if (!agreedTerms.containsAll(TermsType.required())) {
       throw new IllegalArgumentException("필수 약관에 모두 동의해야 합니다: " + agreedTerms);
     }
@@ -140,13 +150,62 @@ public class User {
     // 컬렉션을 바꿔 끼우지 않고 고친다. 그대로인 값은 다시 쓰지 않는다.
     this.interests.retainAll(interests);
     this.interests.addAll(interests);
-    this.agreements.keySet().retainAll(agreedTerms);
-    agreedTerms.forEach(type -> this.agreements.putIfAbsent(type, now));
+    List<AgreementChange> changes = changeAgreements(agreedTerms, now);
     if (this.profileCompletedAt == null) {
       this.profileCompletedAt = now;
     }
     this.updatedAt = now;
+    return changes;
   }
+
+  /**
+   * 탈퇴. 개인정보(이메일·이름·사진·닉네임·출생 연도·성별·관심사)를 지우고 약관 동의를 모두 거둔다. 주문·서명 기록이 이 행을 가리킬 수 있어 행은 남긴다. Google
+   * 계정과의 연결도 끊으므로 같은 Google 계정으로 다시 로그인하면 새 회원으로 가입된다.
+   *
+   * @return 거둔 약관 동의
+   */
+  public List<AgreementChange> withdraw(Instant now) {
+    requireActive();
+    List<AgreementChange> changes = changeAgreements(Set.of(), now);
+    this.googleSub = WITHDRAWN_SUB_PREFIX + id;
+    // email은 NOT NULL이라 실제로 닿지 않는 주소(.invalid, RFC 2606)로 바꾼다
+    this.email = "withdrawn-" + id + "@deleted.invalid";
+    this.name = null;
+    this.pictureUrl = null;
+    this.nickname = null;
+    this.birthYear = null;
+    this.gender = null;
+    this.interests.clear();
+    this.withdrawnAt = now;
+    this.updatedAt = now;
+    return changes;
+  }
+
+  /** 동의 상태를 {@code agreedTerms}로 맞추고 바뀐 것만 돌려준다. 이미 동의한 약관은 처음 동의한 시각을 그대로 둔다. */
+  private List<AgreementChange> changeAgreements(Set<TermsType> agreedTerms, Instant now) {
+    List<AgreementChange> changes = new ArrayList<>();
+    for (TermsType type : TermsType.values()) {
+      boolean before = agreements.containsKey(type);
+      boolean after = agreedTerms.contains(type);
+      if (before && !after) {
+        agreements.remove(type);
+        changes.add(new AgreementChange(type, false));
+      } else if (!before && after) {
+        agreements.put(type, now);
+        changes.add(new AgreementChange(type, true));
+      }
+    }
+    return changes;
+  }
+
+  private void requireActive() {
+    if (isWithdrawn()) {
+      throw new IllegalStateException("탈퇴한 회원입니다: " + id);
+    }
+  }
+
+  /** 약관 동의가 바뀐 것 하나. {@code agreed}가 false면 동의를 거뒀다. */
+  public record AgreementChange(TermsType type, boolean agreed) {}
 
   public Long getId() {
     return id;
@@ -188,9 +247,18 @@ public class User {
     return agreements.containsKey(type);
   }
 
+  /** 지금 유지 중인 동의를 한 시각. 동의하지 않았으면 null */
+  public Instant agreedAt(TermsType type) {
+    return agreements.get(type);
+  }
+
   /** 회원 정보 입력을 마쳤는가. false면 FE가 회원 정보 입력 화면으로 보낸다. */
   public boolean isProfileCompleted() {
     return profileCompletedAt != null;
+  }
+
+  public boolean isWithdrawn() {
+    return withdrawnAt != null;
   }
 
   public Instant getCreatedAt() {

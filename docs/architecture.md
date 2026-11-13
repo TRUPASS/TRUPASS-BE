@@ -110,6 +110,7 @@ core/src/main/java/com/trupass/core/
 | `exception/` | 도메인별 에러 코드 (`XxxErrorCode`) |
 | `client/` | 외부 API 인터페이스 + 구현체 (아래 "왜 이 구조인가") |
 | `scheduler/` | 재시도·재개 같은 주기 작업 |
+| `event/` | 다른 도메인에 알리는 사건 (`UserWithdrawnEvent` 등). 받는 쪽은 자기 service에 `@EventListener`를 둔다. 다른 도메인을 직접 부르면 서로 기대게 될 때 쓴다 |
 
 예시 (`payment`, 테이블이 생기면 `entity/`·`repository/`가 추가된다):
 
@@ -135,7 +136,7 @@ payment/
 | `payment` | `PaymentWebhookController`(`/webhooks/payments`), `PaymentService`, `PaymentClient` → `MockPgClient` / `TossPaymentClient`, `PaymentErrorCode` | Payment 엔티티, client 구현 |
 | `mandate` | `MandateService`, `AuditClient` → `LocalFileAuditClient` / `S3AuditClient`, `MandateErrorCode` | 서명 검증([ADR-0003](adr/0003-webauthn-library-candidates.md)), client 구현 |
 | `ledger` | (비어 있음) | 원장 엔티티·service |
-| `user` | `User` 엔티티(Google 계정 + 닉네임·출생 연도·성별·여행 관심사·약관 동의), `UserService`, `UserController`(`GET /users/me`, `PUT /users/me/profile`) | |
+| `user` | `User` 엔티티(Google 계정 + 닉네임·출생 연도·성별·여행 관심사·약관 동의), `AgreementHistory`(약관 동의·철회 이력), `UserService`(추천용 `getTravelPreference` 포함), `UserController`(`GET /users/me`, `PUT /users/me/profile`, `DELETE /users/me`), `UserWithdrawnEvent` | |
 | `auth` | `AuthController`(`/auth/google`, `/auth/refresh`, `/auth/logout`), `AuthService`, `RefreshTokenService`, `GoogleAuthClient` → `GoogleIdTokenClient` | |
 
 아직 구현하지 않은 client 메서드는 `UnsupportedOperationException`을 던지고, 전역 예외 처리가 이를 `501 COMMON501`로 바꾼다.
@@ -191,7 +192,25 @@ Google 로그인 때 계정이 먼저 생기고(`newUser = true`), FE 회원 정
 - 칸이 틀리면 `COMMON400_1`이고 `result`에 `{칸: 메시지}`가 담긴다(예: `{"agreements.termsOfService": "필수 약관에 동의해야 합니다."}`).
 - 같은 API로 설정에서 고친다(전체를 다시 보낸다). 같은 값을 다시 보내도 결과가 같고, `profileCompleted`는 처음 저장한 뒤로 계속 true다.
 - 약관은 `user_agreements`에 처음 동의한 시각과 함께 남긴다. 선택 약관(`marketing`)을 false로 보내면 동의를 거둔 것으로 보고 지운다.
-- `GET /users/me`와 로그인 응답의 `user`는 같은 형식(`Me`)이고, 위 값과 `agreements`, `profileCompleted`를 함께 준다.
+- `GET /users/me`와 로그인 응답의 `user`는 같은 형식(`Me`)이고, 위 값과 `agreements`(지금 유지 중인 마케팅 수신 동의 시각 `marketingAgreedAt` 포함), `profileCompleted`를 함께 준다.
+
+### 약관 동의 이력
+
+- `user_agreements`는 지금 상태, `user_agreement_histories`는 바뀐 기록이다. 동의하거나 거둘 때마다(회원 정보 입력·수정, 탈퇴) 한 줄씩 쌓고 지우거나 고치지 않는다. 같은 값을 다시 보내면 쌓지 않는다.
+- 마케팅(여행 혜택·알림) 수신을 언제 동의하고 언제 거뒀는지 이것으로 증명한다. V4 이전에 받은 동의는 마이그레이션이 첫 기록으로 옮겼다.
+
+### 회원 탈퇴 (`DELETE /users/me`)
+
+- 행은 지우지 않는다(주문·서명 기록이 가리킬 수 있다). 개인정보(이메일·이름·사진·닉네임·출생 연도·성별·관심사)를 지우고 `withdrawn_at`을 채운다. 약관 동의는 모두 거둔 것으로 이력에 남긴다.
+- `google_sub`를 `withdrawn:{id}`로 바꿔 Google 계정과의 연결을 끊는다. 같은 Google 계정으로 다시 로그인하면 새 회원으로 가입된다.
+- `UserWithdrawnEvent`를 같은 트랜잭션에서 발행하고, auth(`RefreshTokenService`)가 받아 그 회원의 refresh token을 모두 폐기한다.
+- 이미 발급한 access token은 만료(30분)까지 남지만, 탈퇴한 회원으로 오는 요청은 `USER401_1`(401)로 거절한다. FE는 401을 받으면 재발급을 시도하고, refresh token이 폐기돼 있어 로그아웃된다.
+- FE에는 아직 탈퇴 화면이 없다.
+
+### 추천용 회원 성향
+
+- `UserService.getTravelPreference(userId)`는 연령대(10살 단위, 연 나이 기준)와 여행 관심사만 준다. 출생 연도는 넘기지 않는다. 회원 정보 입력 전이면 비어 있다.
+- 여행 요청(trip) API가 생기면 `TripService`가 이 값을 agent 요청에 싣는다. agent 요청 형식(`AgentClientReqDTO.Compose`)은 그때 함께 바꾼다.
 
 ## 4. 왜 이 구조인가
 

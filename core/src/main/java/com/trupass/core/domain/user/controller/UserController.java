@@ -8,6 +8,7 @@ import com.trupass.core.global.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,5 +44,17 @@ public class UserController {
   public ApiResponse<UserResDTO.Me> updateProfile(
       @LoginUserId Long userId, @Valid @RequestBody UserReqDTO.Profile request) {
     return ApiResponse.onSuccess(userService.updateProfile(userId, request));
+  }
+
+  @DeleteMapping("/me")
+  @Operation(
+      summary = "회원 탈퇴",
+      description =
+          "개인정보(이메일 · 이름 · 사진 · 닉네임 · 출생 연도 · 성별 · 관심사)를 지우고 약관 동의를 모두 거두며, 이 회원의 refresh token 을 모두 "
+              + "폐기한다. FE 는 성공하면 이 기기의 로그인 상태도 지운다. 이미 발급한 access token 은 만료(30분)까지 남지만 그 토큰으로 오는 "
+              + "요청은 USER401_1 로 거절한다. 같은 Google 계정으로 다시 로그인하면 새 회원으로 가입된다.")
+  public ApiResponse<Void> withdraw(@LoginUserId Long userId) {
+    userService.withdraw(userId);
+    return ApiResponse.onSuccess(null);
   }
 }

@@ -42,17 +42,30 @@ public final class UserResDTO {
     }
   }
 
-  /** 약관 동의 여부. 요청({@code UserReqDTO.Agreements})과 같은 모양이다. */
+  /** 약관 동의 여부. 요청({@code UserReqDTO.Agreements})과 같은 모양에 마케팅 수신 동의 시각을 더했다. */
   public record AgreementStatus(
-      boolean termsOfService, boolean privacyCollection, boolean marketing) {
+      boolean termsOfService,
+      boolean privacyCollection,
+      boolean marketing,
+      @Schema(description = "지금 유지 중인 마케팅(여행 혜택 · 알림) 수신 동의를 한 시각. 동의하지 않았으면 null")
+          Instant marketingAgreedAt) {
 
     static AgreementStatus from(User user) {
       return new AgreementStatus(
           user.hasAgreed(TermsType.TERMS_OF_SERVICE),
           user.hasAgreed(TermsType.PRIVACY_COLLECTION),
-          user.hasAgreed(TermsType.MARKETING));
+          user.hasAgreed(TermsType.MARKETING),
+          user.agreedAt(TermsType.MARKETING));
     }
   }
+
+  /**
+   * 추천에 쓰는 회원 성향(서비스 내부용, API 응답 아님). 출생 연도 대신 연령대만 담는다.
+   *
+   * @param ageGroup 10살 단위 연령대(예: 30). 회원 정보 입력 전이면 null
+   * @param interests 여행 관심사. 회원 정보 입력 전이면 빈 목록
+   */
+  public record TravelPreference(Integer ageGroup, List<TravelInterest> interests) {}
 
   /** Google 로그인 결과. {@code newUser}가 true면 이번에 가입했다. */
   public record GoogleLogin(Me user, boolean newUser) {}

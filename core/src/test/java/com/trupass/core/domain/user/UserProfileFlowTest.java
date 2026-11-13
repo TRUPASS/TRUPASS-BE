@@ -234,15 +234,20 @@ class UserProfileFlowTest {
 
     List<String> meParams = doc.read("$.paths['/users/me'].get.parameters[*].name");
     List<String> profileParams = doc.read("$.paths['/users/me/profile'].put.parameters[*].name");
+    List<String> withdrawParams = doc.read("$.paths['/users/me'].delete.parameters[*].name");
     assertThat(meParams).doesNotContain("userId");
     assertThat(profileParams).doesNotContain("userId");
+    assertThat(withdrawParams).doesNotContain("userId");
+    Map<String, Object> withdrawOp = doc.read("$.paths['/users/me'].delete");
+    assertThat(withdrawOp).isNotNull();
 
     List<String> profileRequired = doc.read("$.components.schemas.Profile.required");
     assertThat(profileRequired).containsExactlyInAnyOrder("nickname", "birthYear", "agreements");
     List<String> agreementsRequired = doc.read("$.components.schemas.Agreements.required");
     assertThat(agreementsRequired).containsExactlyInAnyOrder("termsOfService", "privacyCollection");
     Map<String, Object> statusProps = doc.read("$.components.schemas.AgreementStatus.properties");
-    assertThat(statusProps).containsOnlyKeys("termsOfService", "privacyCollection", "marketing");
+    assertThat(statusProps)
+        .containsOnlyKeys("termsOfService", "privacyCollection", "marketing", "marketingAgreedAt");
     Map<String, Object> meProps = doc.read("$.components.schemas.Me.properties");
     assertThat(meProps).containsKeys("nickname", "interests", "agreements", "profileCompleted");
   }
