@@ -4,7 +4,7 @@ Trupass 백엔드 모노레포 — "말 한 번으로 떠나고, 결제는 서�
 
 | 디렉터리 | 내용 |
 | --- | --- |
-| `core/` | Java · Spring Boot 메인 API, Saga, 원장, 결제 (포트 8080) |
+| `core/` | Java · Spring Boot 메인 API: 여행 요청, 판매자 연동, 주문 진행, 결제, 서명, 원장 (포트 8080) |
 | `mock-merchant/` | Java · Spring Boot Mock 판매자 A·B·C, 실패 주입·멱등 처리 (포트 9001) |
 | `agent/` | Python · Google ADK · FastAPI AI 에이전트 (포트 8001) |
 | `infra/` | docker compose(로컬·운영 초안), Caddy |
@@ -104,19 +104,22 @@ uv run ruff format . && uv run ruff check . && uv run mypy && uv run pytest
 uv run uvicorn trupass_agent.main:app --reload --port 8001
 ```
 
-### 어댑터 바꾸기
+### 외부 연동 구현체 바꾸기 (Mock ↔ 실제)
 
 `.env`에서 한 줄만 바꾼다.
 
 ```dotenv
-TRUPASS_ADAPTERS_MERCHANT=mock     # mock | duffel
-TRUPASS_ADAPTERS_PAYMENT=mock      # mock | toss
-TRUPASS_ADAPTERS_AUDIT=localfile   # localfile | s3
+TRUPASS_CLIENTS_MERCHANT=mock     # mock | duffel
+TRUPASS_CLIENTS_PAYMENT=mock      # mock | toss
+TRUPASS_CLIENTS_AUDIT=localfile   # localfile | s3
 ```
 
-### 아키텍처 규칙
+### 구조와 규칙
 
-`core`는 포트와 어댑터 구조다. `domain` 패키지가 Spring·JPA·외부 SDK·`adapter`를 import하면 ArchUnit 테스트가 실패해 빌드가 깨진다. 자세한 내용은 [docs/architecture.md](docs/architecture.md)를 본다.
+`core`는 기능(도메인)별 폴더(`trip`, `merchant`, `checkout`, `payment`, `mandate`, `ledger`) 안을 `controller / service / repository / entity / dto / exception / client`로 나눈다.
+외부 API는 도메인의 `client/` 인터페이스로만 부르고, 구현체는 `global/config/ClientConfig`에서만 연결한다.
+controller가 repository·client를 직접 부르거나, client 구현체를 다른 곳에서 import하면 ArchUnit 테스트가 실패해 빌드가 깨진다.
+모든 API 응답은 `ApiResponse`(`isSuccess`, `code`, `message`, `result`) 형식이다. 자세한 내용은 [docs/architecture.md](docs/architecture.md)를 본다.
 
 ## 웹훅 받기 (ngrok / Cloudflare Tunnel)
 

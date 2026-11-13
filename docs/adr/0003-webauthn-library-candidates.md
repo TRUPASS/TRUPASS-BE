@@ -5,7 +5,7 @@
 
 ## 맥락
 
-사용자는 패스키로 **한 번** 서명해 AP2 Mandate를 승인한다. core는 그 서명(WebAuthn assertion)을 검증하고, 원문을 `AuditPort`로 보관해야 한다.
+사용자는 패스키로 **한 번** 서명해 AP2 Mandate를 승인한다. core는 그 서명(WebAuthn assertion)을 검증하고, 원문을 `AuditClient`로 보관해야 한다.
 아직 라이브러리를 정하지 않았다. 그래서 이번 초기 세팅에서는 **의존성을 추가하지 않았다.**
 
 ## 후보
@@ -19,7 +19,7 @@
 ## 결정에 필요한 기준
 
 1. Mandate 해시를 challenge로 묶어 "이 금액·이 오퍼 묶음에 서명했다"를 증명할 수 있는가
-2. 검증 로직을 `domain`(순수)과 `adapter`(라이브러리 의존)로 깔끔하게 나눌 수 있는가
+2. 검증 로직을 `mandate/service`(규칙)와 `mandate/client`(라이브러리 의존)로 깔끔하게 나눌 수 있는가
 3. 라이선스, 유지보수 활성도, JDK 25·Spring Boot 4 호환성
 
 ## 다음 단계

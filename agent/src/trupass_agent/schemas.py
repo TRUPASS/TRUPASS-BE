@@ -65,3 +65,10 @@ class TravelPackage(_CamelModel):
 
     request_summary: str
     options: list[PackageOption] = Field(min_length=2, max_length=3)
+
+
+class ComposeRequest(_CamelModel):
+    """core(trip)가 `POST /compose`로 보내는 패키지 조합 요청."""
+
+    trip_id: str = Field(min_length=1)
+    query: str = Field(min_length=1)
