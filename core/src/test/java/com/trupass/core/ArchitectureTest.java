@@ -7,60 +7,53 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 
-/** 포트와 어댑터 경계를 빌드에서 강제한다. 이 테스트가 깨지면 {@code ./gradlew build}가 실패한다. */
+/**
+ * docs/architecture.md "규칙" 1~3번을 빌드에서 강제한다. 이 테스트가 깨지면 {@code ./gradlew build}가 실패한다.
+ *
+ * <p>4~6번(남의 repository 금지, 멱등키, 트랜잭션 안 외부 호출 금지)은 코드 리뷰로 지킨다.
+ */
 @AnalyzeClasses(packages = "com.trupass.core", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
-  /** 도메인은 JDK 외에는 아무것도 모른다(Spring, JPA, Jackson, 외부 SDK 금지). */
+  private static final String CLIENT_IMPL = "com.trupass.core.domain.*.client.*..";
+  private static final String CLIENT_DTO = "com.trupass.core.domain.*.client.dto..";
+
+  /** 규칙 1. controller는 service만 부른다. */
   @ArchTest
-  static final ArchRule domainDependsOnlyOnJdk =
+  static final ArchRule controllerCallsOnlyService =
+      noClasses()
+          .that()
+          .resideInAPackage("..domain.*.controller..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage("..domain.*.repository..", "..domain.*.client..")
+          .because("controller는 service만 부른다. repository와 client는 service를 거친다");
+
+  /** 규칙 2. 외부 API는 client/로만 부른다. service 등에서 RestClient를 직접 쓰지 않는다. */
+  @ArchTest
+  static final ArchRule onlyClientsUseHttpClients =
+      noClasses()
+          .that()
+          .resideOutsideOfPackages(CLIENT_IMPL, "com.trupass.core.global..")
+          .should()
+          .dependOnClassesThat()
+          .belongToAnyOf(RestClient.class, RestTemplate.class)
+          .because("외부 API는 client/ 인터페이스의 구현체 안에서만 부른다");
+
+  /** 규칙 3. client 구현체는 global/config에서만 연결한다. */
+  @ArchTest
+  static final ArchRule clientImplementationsAreWiredOnlyInConfig =
       classes()
           .that()
-          .resideInAPackage("com.trupass.core.domain..")
+          .resideInAPackage(CLIENT_IMPL)
+          .and()
+          .resideOutsideOfPackage(CLIENT_DTO)
           .should()
-          .onlyDependOnClassesThat()
-          .resideInAnyPackage("com.trupass.core.domain..", "java..")
-          .because("도메인 코어는 어떤 외부 SDK나 어댑터에도 의존하지 않는다");
-
-  @ArchTest
-  static final ArchRule domainDoesNotDependOnOuterLayers =
-      noClasses()
-          .that()
-          .resideInAPackage("com.trupass.core.domain..")
-          .should()
-          .dependOnClassesThat()
-          .resideInAnyPackage(
-              "com.trupass.core.application..",
-              "com.trupass.core.adapter..",
-              "com.trupass.core.config..");
-
-  @ArchTest
-  static final ArchRule applicationDoesNotDependOnAdaptersOrConfig =
-      noClasses()
-          .that()
-          .resideInAPackage("com.trupass.core.application..")
-          .should()
-          .dependOnClassesThat()
-          .resideInAnyPackage("com.trupass.core.adapter..", "com.trupass.core.config..")
-          .because("유스케이스는 포트(인터페이스)만 보고, 어떤 어댑터가 꽂혔는지 몰라야 한다");
-
-  @ArchTest
-  static final ArchRule inboundAdaptersDoNotCallOutboundAdapters =
-      noClasses()
-          .that()
-          .resideInAPackage("com.trupass.core.adapter.inbound..")
-          .should()
-          .dependOnClassesThat()
-          .resideInAPackage("com.trupass.core.adapter.outbound..")
-          .because("컨트롤러는 유스케이스/포트를 거쳐서만 외부와 통신한다");
-
-  @ArchTest
-  static final ArchRule outboundAdaptersDoNotCallInboundAdapters =
-      noClasses()
-          .that()
-          .resideInAPackage("com.trupass.core.adapter.outbound..")
-          .should()
-          .dependOnClassesThat()
-          .resideInAPackage("com.trupass.core.adapter.inbound..");
+          .onlyBeAccessed()
+          .byClassesThat()
+          .resideInAnyPackage(CLIENT_IMPL, "com.trupass.core.global.config..")
+          .because("service는 client 인터페이스만 알고, 구현체(Mock/Toss/Duffel 등)는 설정으로 바꾼다");
 }

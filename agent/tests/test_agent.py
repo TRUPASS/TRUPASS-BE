@@ -9,7 +9,7 @@ from trupass_agent.agent import AGENT_NAME, build_root_agent
 from trupass_agent.config import Settings
 from trupass_agent.main import app
 from trupass_agent.schemas import OfferCategory, OfferRef, PackageOption, TravelPackage
-from trupass_agent.tools.core_client import CoreClient, SearchOffersRequest
+from trupass_agent.tools.core_client import CoreApiError, CoreClient, SearchOffersRequest
 
 
 def _offer(offer_id: str, amount: int, currency: str = "KRW") -> OfferRef:
@@ -78,16 +78,21 @@ def test_core_client_calls_internal_search_offers() -> None:
         return httpx.Response(
             200,
             json={
-                "offers": [
-                    {
-                        "offerId": "A-1",
-                        "merchantId": "A",
-                        "category": "FLIGHT",
-                        "title": "ICN-KIX",
-                        "amount": 320000,
-                        "currency": "KRW",
-                    }
-                ]
+                "isSuccess": True,
+                "code": "COMMON200",
+                "message": "성공했습니다.",
+                "result": {
+                    "offers": [
+                        {
+                            "offerId": "A-1",
+                            "merchantId": "A",
+                            "category": "FLIGHT",
+                            "title": "ICN-KIX",
+                            "amount": 320000,
+                            "currency": "KRW",
+                        }
+                    ]
+                },
             },
         )
 
@@ -96,3 +101,23 @@ def test_core_client_calls_internal_search_offers() -> None:
     assert '"startDate":"2026-12-01"' in str(seen["body"])
     assert offers[0].offer_id == "A-1"
     assert offers[0].amount == 320000
+
+
+def test_core_client_raises_core_error_code_on_failure() -> None:
+    import asyncio
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            501, json={"isSuccess": False, "code": "COMMON501", "message": "아직 구현되지 않은 기능입니다."}
+        )
+
+    with pytest.raises(CoreApiError) as error:
+        asyncio.run(_search(httpx.MockTransport(handler)))
+    assert error.value.status_code == 501
+    assert error.value.code == "COMMON501"
+
+
+def test_compose_validates_request_and_is_not_implemented_yet() -> None:
+    client = TestClient(app)
+    assert client.post("/compose", json={"tripId": "t_1"}).status_code == 422
+    assert client.post("/compose", json={"tripId": "t_1", "query": "오사카 2박 3일"}).status_code == 501

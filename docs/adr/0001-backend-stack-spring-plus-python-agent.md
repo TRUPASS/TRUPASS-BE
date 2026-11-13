@@ -23,7 +23,7 @@ Trupass 백엔드는 성격이 다른 두 가지 일을 한다.
   - AP2 Python SDK는 `google-agentic-commerce/AP2` GitHub 저장소를 커밋으로 고정해 설치한다. PyPI `ap2`는 제3자 미러라 쓰지 않는다.
   - 품질 도구: ruff, mypy(strict), pytest
 - agent는 외부 API(Duffel, TourAPI 등)를 **직접 부르지 않는다.** core의 `/internal/tools/*`만 호출한다.
-  - 키 관리, 레이트 리밋, 감사 로그, 어댑터 교체가 core 한 곳에 모인다.
+  - 키 관리, 레이트 리밋, 감사 로그, 구현체 교체가 core 한 곳에 모인다.
   - 금액은 항상 오퍼 ID와 함께 다닌다. LLM이 금액을 만들거나 고치지 않는다.
 
 ## 결과

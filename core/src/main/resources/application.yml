@@ -16,9 +16,6 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
-  mvc:
-    problemdetails:
-      enabled: true
 
 server:
   port: 8080
@@ -46,9 +43,10 @@ springdoc:
   swagger-ui:
     path: /swagger-ui
 
-# 환경 변수로 덮어쓴다: TRUPASS_ADAPTERS_MERCHANT, MOCK_MERCHANT_BASE_URL 등 (.env.example 참고)
+# 환경 변수로 덮어쓴다: TRUPASS_CLIENTS_MERCHANT, MOCK_MERCHANT_BASE_URL 등 (.env.example 참고)
 trupass:
-  adapters:
+  # 외부 연동 구현체 선택 (global/config/ClientConfig)
+  clients:
     merchant: mock # mock | duffel
     payment: mock # mock | toss
     audit: localfile # localfile | s3

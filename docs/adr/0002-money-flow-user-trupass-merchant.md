@@ -25,9 +25,9 @@ HOLD × 판매자 수     (재고만 잡는다. 돈은 움직이지 않는다)
   - COLLECT → 토스 **부분 취소**(이미 정산이 끝나 되돌릴 수 없는 판매자분은 제외)
   - PAY/CONFIRM → 판매자 `cancel`
 - 자동 보상은 1회 재시도까지만 한다. 그래도 실패하면 체크아웃을 `NEEDS_MANUAL_REVIEW`로 멈추고 사람이 처리한다.
-- Saga 상태는 DB(`checkout`, `checkout_step`)에 저장한다. 서버가 재시작돼도 `SagaStatePort.findResumable`로 이어서 진행한다.
+- Saga 상태는 DB(`checkout`, `checkout_step`)에 저장한다. 서버가 재시작돼도 `checkout/scheduler`가 멈춘 주문을 찾아 이어서 진행한다.
 - 모든 외부 호출에는 `Idempotency-Key = {checkout_id}:{merchant}:{step}`을 붙인다. 재시도할 때도 같은 키를 쓴다.
-  - COLLECT처럼 판매자가 없는 단계는 merchant 자리에 `trupass`를 쓴다(`MerchantId.PLATFORM`).
+  - COLLECT처럼 판매자가 없는 단계는 merchant 자리에 `trupass`를 쓴다(`IdempotencyKey.PLATFORM`).
 - 금액은 `Long`(통화의 최소 단위, KRW는 원) + ISO 4217 통화 코드로만 다룬다.
 
 ## 결과
