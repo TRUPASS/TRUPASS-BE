@@ -71,6 +71,7 @@
       <button id="me" disabled>GET /users/me</button>
       <button id="refresh" disabled>POST /auth/refresh</button>
       <button id="logout" disabled>POST /auth/logout</button>
+      <button id="withdraw" disabled>DELETE /users/me (탈퇴)</button>
       <button id="clear">로그 지우기</button>
     </div>
   </section>
@@ -120,6 +121,7 @@
     $("me").disabled = !state.accessToken;
     $("refresh").disabled = !state.refreshToken;
     $("logout").disabled = !state.refreshToken;
+    $("withdraw").disabled = !state.accessToken;
   }
 
   function log(title, status, body) {
@@ -230,6 +232,16 @@
     if (status === 200) {
       state.refreshToken = null;
       $("status").textContent = "로그아웃했습니다. refresh token은 폐기됐고, access token은 만료(30분)까지 유효합니다.";
+    }
+    render();
+  });
+
+  $("withdraw").addEventListener("click", async () => {
+    if (!confirm("정말 탈퇴할까요? 개인정보가 지워지고 이 계정의 refresh token이 모두 폐기됩니다.")) return;
+    const { status } = await call("DELETE", "/users/me", { auth: true });
+    if (status === 200) {
+      $("status").textContent =
+        "탈퇴했습니다. 남은 access token으로 GET /users/me를 누르면 USER401_1, refresh는 AUTH401_3입니다. 같은 Google 계정으로 다시 로그인하면 새 회원입니다.";
     }
     render();
   });
