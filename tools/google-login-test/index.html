@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google 로그인 테스트</title>
+  <!-- 로컬 개발용 테스트 페이지. FE 없이 core의 구글 로그인 흐름(/auth/google → /users/me → /auth/refresh → /auth/logout)을 확인한다. -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <style>
+    :root {
+      --bg: #f6f7f9; --card: #fff; --text: #1d2129; --muted: #6b7280; --border: #e5e7eb;
+      --accent: #2563eb; --ok: #15803d; --err: #b91c1c; --code-bg: #0f172a; --code-text: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0b0f17; --card: #121826; --text: #e5e7eb; --muted: #9ca3af; --border: #263041; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 20px; }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+    input { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+      background: transparent; color: var(--text); font: inherit; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card);
+      color: var(--text); font: inherit; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #gbtn { margin-top: 12px; min-height: 44px; }
+    .status { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .tokens div { font-size: 13px; margin: 4px 0; word-break: break-all; }
+    .tokens b { display: inline-block; min-width: 110px; }
+    #log { display: flex; flex-direction: column; gap: 10px; }
+    .entry { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .entry header { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; font-size: 13px; }
+    .entry header .ok { color: var(--ok); font-weight: 600; }
+    .entry header .err { color: var(--err); font-weight: 600; }
+    pre { margin: 0; padding: 10px 12px; background: var(--code-bg); color: var(--code-text);
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Google 로그인 테스트</h1>
+  <p class="sub">core(<code>localhost:8080</code>)의 구글 로그인을 FE 없이 확인하는 로컬 전용 페이지입니다.</p>
+
+  <section>
+    <h2>1. 설정</h2>
+    <label for="clientId">Google OAuth 클라이언트 ID (.env의 GOOGLE_OAUTH_CLIENT_IDS와 같은 값)</label>
+    <input id="clientId" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" />
+    <label for="apiBase">core 주소</label>
+    <input id="apiBase" value="http://localhost:8080" />
+    <div class="row"><button class="primary" id="setup">구글 로그인 버튼 표시</button></div>
+    <div id="gbtn"></div>
+    <div class="status" id="status">클라이언트 ID를 넣고 버튼을 누르세요.</div>
+  </section>
+
+  <section>
+    <h2>2. 로그인 후 확인</h2>
+    <div class="tokens">
+      <div><b>userId</b><span id="tUser">-</span></div>
+      <div><b>accessToken</b><span id="tAccess">-</span></div>
+      <div><b>refreshToken</b><span id="tRefresh">-</span></div>
+    </div>
+    <div class="row">
+      <button id="me" disabled>GET /users/me</button>
+      <button id="refresh" disabled>POST /auth/refresh</button>
+      <button id="logout" disabled>POST /auth/logout</button>
+      <button id="clear">로그 지우기</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>요청 기록 (최신이 위)</h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const state = { accessToken: null, refreshToken: null };
+
+  // 클라이언트 ID·core 주소만 이 브라우저에 기억한다. 토큰은 저장하지 않는다.
+  try {
+    const saved = localStorage.getItem("trupass.test.clientId");
+    if (saved) $("clientId").value = saved;
+    const savedApi = localStorage.getItem("trupass.test.apiBase");
+    if (savedApi) $("apiBase").value = savedApi;
+  } catch (_) {}
+
+  const short = (t) => (t ? `${t.slice(0, 24)}…${t.slice(-8)} (${t.length}자)` : "-");
+
+  function render() {
+    $("tAccess").textContent = short(state.accessToken);
+    $("tRefresh").textContent = short(state.refreshToken);
+    $("me").disabled = !state.accessToken;
+    $("refresh").disabled = !state.refreshToken;
+    $("logout").disabled = !state.refreshToken;
+  }
+
+  function log(title, status, body) {
+    const ok = status >= 200 && status < 300;
+    const entry = document.createElement("div");
+    entry.className = "entry";
+    const header = document.createElement("header");
+    const left = document.createElement("span");
+    left.textContent = title;
+    const right = document.createElement("span");
+    right.className = ok ? "ok" : "err";
+    right.textContent = status === 0 ? "요청 실패" : `${status}`;
+    header.append(left, right);
+    const pre = document.createElement("pre");
+    pre.textContent = typeof body === "string" ? body : JSON.stringify(body, null, 2);
+    entry.append(header, pre);
+    $("log").prepend(entry);
+  }
+
+  async function call(method, path, { body, auth } = {}) {
+    const headers = { "Content-Type": "application/json" };
+    if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
+    const url = $("apiBase").value.replace(/\/$/, "") + path;
+    try {
+      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch (_) { json = text; }
+      log(`${method} ${path}`, res.status, json);
+      return { status: res.status, json };
+    } catch (e) {
+      log(`${method} ${path}`, 0, `${e.message}\n\ncore가 켜져 있는지, CORS(localhost:5173 허용)를 확인하세요.`);
+      return { status: 0, json: null };
+    }
+  }
+
+  function decodeJwtPayload(jwt) {
+    const part = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(part).split("").map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+    );
+    return JSON.parse(json);
+  }
+
+  async function onGoogleCredential(response) {
+    // 구글이 준 ID 토큰의 내용(누구인지, aud=클라이언트 ID)을 먼저 보여 준다.
+    const p = decodeJwtPayload(response.credential);
+    log("구글 ID 토큰 (디코딩, 검증 전)", 200, {
+      iss: p.iss, aud: p.aud, sub: p.sub, email: p.email, email_verified: p.email_verified,
+      name: p.name, exp: new Date(p.exp * 1000).toLocaleString(),
+    });
+
+    const { status, json } = await call("POST", "/auth/google", { body: { idToken: response.credential } });
+    if (status === 200 && json?.isSuccess) {
+      state.accessToken = json.result.tokens.accessToken;
+      state.refreshToken = json.result.tokens.refreshToken;
+      $("tUser").textContent = `${json.result.user.userId} (${json.result.newUser ? "신규 가입" : "기존 사용자"})`;
+      $("status").textContent = `로그인 성공: ${json.result.user.email}`;
+    } else {
+      $("status").textContent = "로그인 실패. 아래 요청 기록의 code를 확인하세요.";
+    }
+    render();
+  }
+
+  $("setup").addEventListener("click", () => {
+    const clientId = $("clientId").value.trim();
+    if (!clientId) { $("status").textContent = "클라이언트 ID를 넣어 주세요."; return; }
+    if (!window.google?.accounts?.id) { $("status").textContent = "구글 스크립트를 불러오는 중입니다. 잠시 후 다시 누르세요."; return; }
+    try {
+      localStorage.setItem("trupass.test.clientId", clientId);
+      localStorage.setItem("trupass.test.apiBase", $("apiBase").value.trim());
+    } catch (_) {}
+    google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential });
+    $("gbtn").innerHTML = "";
+    google.accounts.id.renderButton($("gbtn"), { theme: "outline", size: "large", text: "signin_with", locale: "ko" });
+    $("status").textContent = "구글 버튼을 눌러 로그인하세요.";
+  });
+
+  $("me").addEventListener("click", () => call("GET", "/users/me", { auth: true }));
+
+  $("refresh").addEventListener("click", async () => {
+    const { status, json } = await call("POST", "/auth/refresh", { body: { refreshToken: state.refreshToken } });
+    if (status === 200 && json?.isSuccess) {
+      state.accessToken = json.result.accessToken;
+      state.refreshToken = json.result.refreshToken;
+    }
+    render();
+  });
+
+  $("logout").addEventListener("click", async () => {
+    const { status } = await call("POST", "/auth/logout", { body: { refreshToken: state.refreshToken } });
+    if (status === 200) {
+      state.refreshToken = null;
+      $("status").textContent = "로그아웃했습니다. refresh token은 폐기됐고, access token은 만료(30분)까지 유효합니다.";
+    }
+    render();
+  });
+
+  $("clear").addEventListener("click", () => { $("log").innerHTML = ""; });
+  render();
+</script>
+</body>
+</html>

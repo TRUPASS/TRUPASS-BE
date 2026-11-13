@@ -43,7 +43,7 @@ class CoreApiResponse[T](BaseModel):
 
 
 class CoreApiError(Exception):
-    """core가 `isSuccess=false`로 응답했다. `code`는 core의 에러 코드(예: `MERCHANT4091`)다."""
+    """core가 `isSuccess=false`로 응답했다. `code`는 core의 에러 코드(예: `MERCHANT409_1`)다."""
 
     def __init__(self, status_code: int, code: str, message: str):
         super().__init__(f"{status_code} {code}: {message}")

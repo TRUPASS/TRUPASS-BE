@@ -1,12 +1,14 @@
 package com.trupass.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.trupass.core.domain.auth.client.GoogleAuthClient;
 import com.trupass.core.domain.mandate.client.AuditClient;
 import com.trupass.core.domain.merchant.client.MerchantClient;
 import com.trupass.core.domain.payment.client.PaymentClient;
@@ -47,6 +49,7 @@ class TrupassApplicationTest {
     assertThat(context.getBean(PaymentClient.class)).isNotNull();
     assertThat(context.getBean(AuditClient.class)).isNotNull();
     assertThat(context.getBean(AgentClient.class)).isNotNull();
+    assertThat(context.getBean(GoogleAuthClient.class)).isNotNull();
   }
 
   @Test
@@ -71,7 +74,7 @@ class TrupassApplicationTest {
                 .content("{\"destination\":\"\",\"travelers\":0}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.isSuccess").value(false))
-        .andExpect(jsonPath("$.code").value("COMMON4001"))
+        .andExpect(jsonPath("$.code").value("COMMON400_1"))
         .andExpect(jsonPath("$.result.destination").exists());
   }
 
@@ -93,7 +96,7 @@ class TrupassApplicationTest {
   @Test
   void 없는_경로는_공통_응답_형식의_404로_내려간다() throws Exception {
     mockMvc
-        .perform(get("/no-such-path"))
+        .perform(get("/no-such-path").with(jwt()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("COMMON404"));
   }

@@ -60,6 +60,14 @@ trupass:
     allowed-origins: http://localhost:5173
   audit:
     local-dir: ./data/audit
+  auth:
+    google:
+      # Google Cloud Console > API 및 서비스 > 사용자 인증 정보 > OAuth 2.0 클라이언트 ID (쉼표로 여러 개)
+      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+    jwt:
+      secret: ${TRUPASS_JWT_SECRET:}
+      access-token-ttl: 30m
+      refresh-token-ttl: 14d
 
 ---
 spring:
@@ -71,6 +79,12 @@ management:
   endpoint:
     health:
       show-details: always
+
+trupass:
+  auth:
+    jwt:
+      # TRUPASS_JWT_SECRET이 없거나 비어 있으면 이 값을 쓴다. prod에는 이 값이 없어 TRUPASS_JWT_SECRET이 없으면 뜨지 않는다.
+      local-dev-secret: local-only-trupass-jwt-secret-change-me-0123456789
 
 ---
 spring:

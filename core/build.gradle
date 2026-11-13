@@ -11,6 +11,9 @@ dependencies {
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.flyway
     implementation libs.spring.boot.starter.restclient
+    implementation libs.spring.boot.starter.security
+    // Google ID 토큰(RS256, JWKS) 검증과 Trupass access token(HS256) 발급·검증에 Nimbus JOSE를 쓴다.
+    implementation libs.spring.boot.starter.oauth2.resource.server
     implementation libs.flyway.database.postgresql
     implementation libs.springdoc.openapi.webmvc.ui
     runtimeOnly libs.postgresql
@@ -18,6 +21,7 @@ dependencies {
     testImplementation platform(libs.spring.boot.bom)
     testImplementation libs.spring.boot.starter.test
     testImplementation libs.spring.boot.starter.webmvc.test
+    testImplementation libs.spring.boot.starter.security.test
     testImplementation libs.spring.boot.testcontainers
     testImplementation libs.testcontainers.postgresql
     testImplementation libs.testcontainers.junit.jupiter

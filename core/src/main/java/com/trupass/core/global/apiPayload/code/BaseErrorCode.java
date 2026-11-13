@@ -7,7 +7,7 @@ public interface BaseErrorCode {
 
   HttpStatus getStatus();
 
-  /** 예: {@code COMMON400}, {@code PAYMENT4001}, {@code MERCHANT4091}. */
+  /** 예: {@code COMMON400}, {@code PAYMENT400_1}, {@code MERCHANT409_1}. */
   String getCode();
 
   String getMessage();
