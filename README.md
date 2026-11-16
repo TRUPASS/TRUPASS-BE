@@ -121,6 +121,20 @@ TRUPASS_CLIENTS_AUDIT=localfile   # localfile | s3
 controller가 repository·client를 직접 부르거나, client 구현체를 다른 곳에서 import하면 ArchUnit 테스트가 실패해 빌드가 깨진다.
 모든 API 응답은 `ApiResponse`(`isSuccess`, `code`, `message`, `result`) 형식이다. 자세한 내용은 [docs/architecture.md](docs/architecture.md)를 본다.
 
+## 구글 로그인 테스트 (FE 없이)
+
+`tools/google-login-test/index.html`은 core의 구글 로그인을 직접 확인하는 로컬 전용 페이지다.
+
+1. Google Cloud Console의 OAuth 클라이언트 → 승인된 JavaScript 원본에 `http://localhost`, `http://localhost:5173`이 있어야 한다.
+2. `.env`에 `GOOGLE_OAUTH_CLIENT_IDS`를 넣고 core를 띄운다(postgres 필요).
+3. 테스트 페이지를 5173에서 연다. FE 개발 서버와 포트가 같으니 동시에 띄우지 않는다.
+
+```bash
+cd tools/google-login-test && python3 -m http.server 5173 --bind 127.0.0.1
+```
+
+4. Chrome에서 http://localhost:5173 → 클라이언트 ID 입력 → 구글 버튼으로 로그인 → `/users/me`, `/auth/refresh`, `/auth/logout`을 눌러 본다.
+
 ## 웹훅 받기 (ngrok / Cloudflare Tunnel)
 
 토스페이먼츠 같은 PG는 공인 URL로만 웹훅을 보낸다. 로컬 core(8080)를 잠깐 외부에 연다.

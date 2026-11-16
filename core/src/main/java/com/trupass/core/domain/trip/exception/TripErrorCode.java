@@ -5,9 +5,9 @@ import org.springframework.http.HttpStatus;
 
 /** 여행 요청·패키지 조합 에러. */
 public enum TripErrorCode implements BaseErrorCode {
-  AGENT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "TRIP5031", "AI 에이전트에 연결할 수 없습니다."),
-  AGENT_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "TRIP5041", "AI 에이전트 응답이 늦어지고 있습니다."),
-  INVALID_PACKAGE(HttpStatus.BAD_GATEWAY, "TRIP5021", "AI 에이전트가 올바르지 않은 패키지를 돌려줬습니다.");
+  AGENT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "TRIP503_1", "AI 에이전트에 연결할 수 없습니다."),
+  AGENT_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "TRIP504_1", "AI 에이전트 응답이 늦어지고 있습니다."),
+  INVALID_PACKAGE(HttpStatus.BAD_GATEWAY, "TRIP502_1", "AI 에이전트가 올바르지 않은 패키지를 돌려줬습니다.");
 
   private final HttpStatus status;
   private final String code;

@@ -85,11 +85,14 @@ core/src/main/java/com/trupass/core/
 │   ├── checkout/    주문 진행: HOLD → COLLECT → PAY → CONFIRM, 실패 시 되돌리기
 │   ├── payment/     사용자 결제: 승인·부분 취소·웹훅
 │   ├── mandate/     사용자 서명 검증, 서명 원본·영수증 보관
-│   └── ledger/      원장: 돈이 어디서 어디로 얼마 움직였는지 기록
+│   ├── ledger/      원장: 돈이 어디서 어디로 얼마 움직였는지 기록
+│   ├── user/        사용자 (Google 계정으로 가입)
+│   └── auth/        Google 로그인, access/refresh token 발급
 └── global/
     ├── apiPayload/  공통 응답(ApiResponse), 에러 코드, 전역 예외 처리
     ├── config/      외부 연동 구현체 선택, RestClient·CORS·Swagger 설정
     ├── common/      여러 도메인이 같이 쓰는 값 (Money, IdempotencyKey)
+    ├── security/    Spring Security(Bearer JWT), access token 발급·검증, @LoginUserId
     └── web/         공통 필터 (요청마다 주문 번호를 로그에 붙임)
 ```
 
@@ -132,6 +135,8 @@ payment/
 | `payment` | `PaymentWebhookController`(`/webhooks/payments`), `PaymentService`, `PaymentClient` → `MockPgClient` / `TossPaymentClient`, `PaymentErrorCode` | Payment 엔티티, client 구현 |
 | `mandate` | `MandateService`, `AuditClient` → `LocalFileAuditClient` / `S3AuditClient`, `MandateErrorCode` | 서명 검증([ADR-0003](adr/0003-webauthn-library-candidates.md)), client 구현 |
 | `ledger` | (비어 있음) | 원장 엔티티·service |
+| `user` | `User` 엔티티, `UserService`, `UserController`(`GET /users/me`) | |
+| `auth` | `AuthController`(`/auth/google`, `/auth/refresh`, `/auth/logout`), `AuthService`, `RefreshTokenService`, `GoogleAuthClient` → `GoogleIdTokenClient` | |
 
 아직 구현하지 않은 client 메서드는 `UnsupportedOperationException`을 던지고, 전역 예외 처리가 이를 `501 COMMON501`로 바꾼다.
 테이블은 `V1__baseline.sql`이 비어 있고, 담당자가 `V2__*.sql`부터 추가한다(`ddl-auto: validate`).
@@ -142,13 +147,29 @@ payment/
 
 ```json
 { "isSuccess": true,  "code": "COMMON200",    "message": "성공했습니다.", "result": { ... } }
-{ "isSuccess": false, "code": "MERCHANT4091", "message": "품절된 상품입니다." }
+{ "isSuccess": false, "code": "MERCHANT409_1", "message": "품절된 상품입니다." }
 ```
 
 - 성공: `return ApiResponse.onSuccess(result);`
 - 실패: `throw new GeneralException(MerchantErrorCode.SOLD_OUT);` → `GlobalExceptionHandler`가 상태 코드와 응답을 만든다.
-- 에러 코드는 `BaseErrorCode`를 구현한 도메인별 enum(`XxxErrorCode`)에 둔다. 코드 형식은 `{도메인}{HTTP 상태}{번호}`(예: `PAYMENT4221`).
-- 검증 실패는 `COMMON4001`이고, `result`에 `{필드: 메시지}`가 담긴다. 404·405 같은 Spring 기본 에러도 같은 형식으로 내려간다.
+- 에러 코드는 `BaseErrorCode`를 구현한 도메인별 enum(`XxxErrorCode`)에 둔다. 코드 형식은 `{도메인}{HTTP 상태}_{번호}`(예: `PAYMENT422_1`).
+- 검증 실패는 `COMMON400_1`이고, `result`에 `{필드: 메시지}`가 담긴다. 404·405 같은 Spring 기본 에러도 같은 형식으로 내려간다.
+
+### 로그인 (Google)
+
+```
+FE ── Google Identity Services ──▶ ID 토큰(credential)
+FE ── POST /auth/google {idToken} ──▶ core: Google 공개키로 서명·aud·iss·만료 검증
+                                         → 사용자 찾기/가입 → access token(JWT 30분) + refresh token(14일)
+FE ── Authorization: Bearer {accessToken} ──▶ 인증이 필요한 API
+FE ── POST /auth/refresh {refreshToken} ──▶ 새 토큰 쌍 (refresh token은 1회용, 재사용되면 그 사용자 것 전부 폐기)
+FE ── POST /auth/logout {refreshToken} ──▶ refresh token 폐기
+```
+
+- 열린 경로: `/auth/**`, `/internal/**`(agent 전용, 운영은 Caddy가 차단), `/webhooks/**`, health, Swagger. 나머지는 모두 로그인이 필요하다.
+- controller에서 로그인 사용자는 `@LoginUserId Long userId`로 받는다.
+- 토큰이 없으면 `COMMON401`, 틀리거나 만료되면 `COMMON401_1`.
+- 설정: `GOOGLE_OAUTH_CLIENT_IDS`(Google OAuth 클라이언트 ID), `TRUPASS_JWT_SECRET`(32바이트 이상, prod 필수).
 
 ## 4. 왜 이 구조인가
 

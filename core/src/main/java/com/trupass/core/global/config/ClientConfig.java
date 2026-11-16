@@ -1,5 +1,7 @@
 package com.trupass.core.global.config;
 
+import com.trupass.core.domain.auth.client.GoogleAuthClient;
+import com.trupass.core.domain.auth.client.google.GoogleIdTokenClient;
 import com.trupass.core.domain.mandate.client.AuditClient;
 import com.trupass.core.domain.mandate.client.localfile.LocalFileAuditClient;
 import com.trupass.core.domain.mandate.client.s3.S3AuditClient;
@@ -61,5 +63,13 @@ public class ClientConfig {
   AgentClient agentClient(TrupassProperties properties, RestClient.Builder restClientBuilder) {
     return new HttpAgentClient(
         restClientBuilder.clone().baseUrl(properties.services().agentBaseUrl()).build());
+  }
+
+  @Bean
+  GoogleAuthClient googleAuthClient(TrupassProperties properties) {
+    return new GoogleIdTokenClient(
+        properties.auth().google().clientIds(),
+        properties.http().connectTimeout(),
+        properties.http().readTimeout());
   }
 }

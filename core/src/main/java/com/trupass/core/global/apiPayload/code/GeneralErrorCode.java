@@ -5,8 +5,9 @@ import org.springframework.http.HttpStatus;
 /** 특정 도메인에 속하지 않는 공통 에러. */
 public enum GeneralErrorCode implements BaseErrorCode {
   BAD_REQUEST(HttpStatus.BAD_REQUEST, "COMMON400", "잘못된 요청입니다."),
-  INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON4001", "입력값이 올바르지 않습니다."),
+  INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON400_1", "입력값이 올바르지 않습니다."),
   UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "COMMON401", "인증이 필요합니다."),
+  INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "COMMON401_1", "access token이 올바르지 않거나 만료됐습니다."),
   FORBIDDEN(HttpStatus.FORBIDDEN, "COMMON403", "권한이 없습니다."),
   NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "요청한 리소스를 찾을 수 없습니다."),
   METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON405", "지원하지 않는 HTTP 메서드입니다."),
