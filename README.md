@@ -155,11 +155,15 @@ cloudflared tunnel --url http://localhost:8080
 
 - **0단계:** 로컬 `infra/docker-compose.yml`
 - **1단계:** EC2 한 대 + `infra/docker-compose.prod.yml` + Caddy 자동 TLS(`infra/caddy/Caddyfile`). 이미지는 main 머지 시 `ghcr.io/trupass/trupass-{core,mock-merchant,agent}`로 push된다. FE는 Vercel.
-- EC2 배포 job은 `.github/workflows/docker-publish.yml`에 주석으로 자리만 있다.
+- 운영 주소: API `https://api.trupass.online`(EC2, Caddy), FE `https://www.trupass.online`(Vercel).
+- main에 머지되면 `docker-publish.yml`이 이미지를 push한 뒤 `deploy` job이 EC2에 SSH로 접속해 `infra/` 파일을 맞추고 `docker compose pull` → `up -d --wait`로 배포한다.
+  - repository secrets: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`(배포 전용 키)
+  - 서버에 미리 해 둘 것: `/opt/trupass/.env`(`.env.example`의 운영 키 포함), `docker login ghcr.io`(`read:packages` PAT)
+- 수동 배포·롤백(EC2에서): `cd /opt/trupass && IMAGE_TAG=sha-<커밋 전체 해시> docker compose -f docker-compose.prod.yml up -d --wait`
 
 ## CI
 
 - `ci.yml`: PR마다 경로 필터로 바뀐 부분만 검사한다.
   - `core/**`, `mock-merchant/**`, Gradle 공통 파일 → Gradle build + test
   - `agent/**` → `uv sync` → ruff → mypy → pytest
-- `docker-publish.yml`: main 머지 시 세 서비스 이미지를 GHCR에 push한다.
+- `docker-publish.yml`: main 머지 시 세 서비스 이미지를 GHCR에 push하고 EC2에 배포한다.

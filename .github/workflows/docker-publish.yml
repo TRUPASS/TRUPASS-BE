@@ -40,13 +40,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 기본 브랜치는 develop이라 {{is_default_branch}}로는 main에서 latest가 붙지 않는다. latest는 main 이미지에만 붙인다.
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
             type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - uses: docker/build-push-action@v7
         with:
@@ -58,19 +59,50 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-  # 1단계(EC2) 배포 자리. EC2 준비 후 주석을 풀고 secrets(EC2_HOST, EC2_USER, EC2_SSH_KEY)를 등록한다.
-  # deploy:
-  #   needs: publish
-  #   runs-on: ubuntu-latest
-  #   environment: production
-  #   steps:
-  #     - uses: appleboy/ssh-action@<버전 고정>
-  #       with:
-  #         host: ${{ secrets.EC2_HOST }}
-  #         username: ${{ secrets.EC2_USER }}
-  #         key: ${{ secrets.EC2_SSH_KEY }}
-  #         script: |
-  #           cd /opt/trupass
-  #           export IMAGE_TAG=sha-${{ github.sha }}
-  #           docker compose -f docker-compose.prod.yml pull
-  #           docker compose -f docker-compose.prod.yml up -d
+  # 1단계(EC2) 배포. main에 올라간 이미지만 배포한다.
+  # 필요한 repository secrets: EC2_HOST(탄력적 IP), EC2_USER(ubuntu), EC2_SSH_KEY(배포 전용 키의 private key 전체)
+  # EC2의 /opt/trupass/.env와 ghcr.io 로그인은 서버에 미리 되어 있어야 한다(README 배포 참고).
+  deploy:
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    # 연달아 머지돼도 배포는 하나씩, 순서대로 돈다.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      # compose 파일과 Caddyfile을 서버와 맞춘다. infra/ 접두사를 떼서 /opt/trupass 아래에 둔다.
+      # rm 옵션은 대상 폴더를 통째로 지워 서버의 .env까지 날아가므로 절대 켜지 않는다.
+      - uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: infra/docker-compose.prod.yml,infra/caddy/Caddyfile
+          target: /opt/trupass
+          strip_components: 1
+          overwrite: true
+
+      - uses: appleboy/ssh-action@v1.2.5
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG
+          command_timeout: 15m
+          script: |
+            set -e
+            cd /opt/trupass
+            echo "IMAGE_TAG=$IMAGE_TAG"
+            docker compose -f docker-compose.prod.yml pull
+            # --wait: healthcheck가 있는 서비스가 healthy가 될 때까지 기다리고, 실패하면 job을 실패시킨다.
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans --wait --wait-timeout 300
+            # Caddyfile은 바인드 마운트라 컨테이너가 그대로면 바뀐 설정을 다시 읽어야 한다.
+            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+            docker compose -f docker-compose.prod.yml ps
+            docker image prune -f
