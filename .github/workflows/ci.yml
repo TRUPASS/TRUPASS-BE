@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -28,6 +28,8 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # push 이벤트는 base가 없으면 기본 브랜치(main)와 비교한다. push된 브랜치를 주면 push 직전 커밋과 비교한다. PR에서는 무시된다.
+          base: ${{ github.ref_name }}
           filters: |
             gradle: &gradle
               - 'gradle/**'
