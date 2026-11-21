@@ -39,6 +39,7 @@ packages = ["src/trupass_agent"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+extend-exclude = ["trupass-ai"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "ASYNC"]
