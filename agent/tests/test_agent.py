@@ -1,8 +1,14 @@
+from collections.abc import AsyncGenerator
 from datetime import date
 
 import httpx
 import pytest
+from app.core.config import get_settings as planner_settings
 from fastapi.testclient import TestClient
+from google.adk.models.google_llm import Gemini
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
 from pydantic import ValidationError
 
 from trupass_agent.agent import AGENT_NAME, build_root_agent
@@ -27,6 +33,29 @@ def test_health() -> None:
     response = TestClient(app).get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_plan_runs_adk_and_caches_extraction(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    async def reply(_model: Gemini, llm_request: LlmRequest, stream: bool = False) -> AsyncGenerator[LlmResponse]:
+        calls.append(llm_request)
+        yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text='{"destination":"도쿄"}')]))
+
+    monkeypatch.setattr(Gemini, "generate_content_async", reply)
+    monkeypatch.setattr(app.state.analyzer, "_key", "test")
+    monkeypatch.setattr(planner_settings(), "internal_api_key", "internal-test")
+    with TestClient(app) as client:
+        for expected_call in (True, False):
+            response = client.post(
+                "/api/v1/trips/plan",
+                json={"prompt": "도쿄로 여행할래요"},
+                headers={"X-Internal-API-Key": "internal-test"},
+            )
+            assert response.status_code == 200
+            assert response.json()["requirements"] == {"destination": "도쿄"}
+            assert response.json()["gemini_called"] is expected_call
+    assert len(calls) == 1
 
 
 def test_package_total_is_derived_from_offers_and_serialized_camel_case() -> None:
@@ -117,7 +146,8 @@ def test_core_client_raises_core_error_code_on_failure() -> None:
     assert error.value.code == "COMMON501"
 
 
-def test_compose_validates_request_and_is_not_implemented_yet() -> None:
-    client = TestClient(app)
-    assert client.post("/compose", json={"tripId": "t_1"}).status_code == 422
-    assert client.post("/compose", json={"tripId": "t_1", "query": "오사카 2박 3일"}).status_code == 501
+def test_main_routes_offer_extraction_only() -> None:
+    paths = TestClient(app).get("/openapi.json").json()["paths"]
+    assert "/api/v1/trips/plan" in paths
+    assert "/api/v1/trips/prompts" in paths
+    assert "/compose" not in paths

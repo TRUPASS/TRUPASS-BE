@@ -1,43 +1,71 @@
 from datetime import date
-from enum import Enum
-from typing import Literal
-from pydantic import BaseModel, Field, model_validator
+from typing import Annotated, Literal
+from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-class TransportKind(str, Enum):
-    FLIGHT = 'flight'
-    TRAIN = 'train'
-    BUS = 'bus'
-    FERRY = 'ferry'
+Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class TripInput(BaseModel):
-    # Existing preview separates 3 free-text inputs; a single prompt is also possible.
-    prompt: str = Field(min_length=5, max_length=3000)
-    accommodation_prompt: str = Field(default='', max_length=1000)
-    purpose_prompt: str = Field(default='', max_length=1000)
+    model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
+    prompt: str | None = Field(default=None, max_length=3000)
+    accommodation_prompt: str | None = Field(default=None, max_length=1000)
+    purpose_prompt: str | None = Field(default=None, max_length=1000)
     origin_hint: str | None = Field(default=None, max_length=100)
     currency: Literal['KRW'] = 'KRW'
 
 
+class PromptUpdate(TripInput):
+    model_config = ConfigDict(json_schema_extra={'examples': [{
+        'prompt': '도쿄에 가고 싶어',
+        'accommodation_prompt': '실제 여행자 후기 4.5점 이상인 숙소',
+        'purpose_prompt': '가족과 대화하는 게 최우선이야. 함께 재충전하고 싶어.',
+    }]})
+    prompt_id: UUID | None = None
+
+
+class SavedPrompts(BaseModel):
+    prompt_id: UUID
+    prompts: TripInput
+
+
 class TripRequirements(BaseModel):
-    origin: str | None = None
-    destination: str | None = None
+    origin: Text | None = None
+    destination: Text | None = None
     departure_date: date | None = None
     return_date: date | None = None
-    travelers: int = Field(default=1, ge=1, le=20)
+    travelers: int | None = Field(default=None, ge=1, le=20)
     budget_krw: int | None = Field(default=None, ge=1)
-    purpose: str = '관광'
-    accommodation_preferences: list[str] = Field(default_factory=list)
-    transport_preferences: list[TransportKind] = Field(default_factory=list)
+    purpose: Text | None = None
+    core_travel_goal: Text | None = None
+    desired_satisfaction: Text | None = None
+    min_traveler_rating: float | None = Field(default=None, ge=1, le=5, strict=True)
+    accommodation_preferences: list[Text] | None = None
+    transport_preferences: list[Literal['flight', 'train', 'bus', 'ferry']] | None = None
     departure_period: Literal['morning', 'afternoon', 'evening'] | None = None
-    additional_cities: list[str] = Field(default_factory=list)
+    additional_cities: list[Text] | None = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def omit_empty_values(cls, values):
+        if isinstance(values, dict):
+            return {k: v for k, v in values.items() if v != [] and not (isinstance(v, str) and not v.strip())}
+        return values
 
     @model_validator(mode='after')
     def valid_date_range(self):
         if self.departure_date and self.return_date and self.return_date <= self.departure_date:
             raise ValueError('return_date must be later than departure_date')
         return self
+
+
+class PlanResponse(BaseModel):
+    prompt_id: UUID
+    requirements: TripRequirements
+    gemini_called: bool
+    prompt_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class MoneyBreakdown(BaseModel):
@@ -49,65 +77,6 @@ class MoneyBreakdown(BaseModel):
     over_budget_krw: int
     remaining_budget_krw: int
     is_over_budget: bool
-
-
-class TransportOption(BaseModel):
-    id: str
-    source: str
-    kind: TransportKind
-    origin: str
-    destination: str
-    departure_date: date
-    return_date: date
-    total_price_krw: int = Field(ge=0, description='All travelers, round trip if applicable')
-    duration_minutes: int = Field(ge=0)
-    seller: str | None = None
-    departure_time: str | None = None
-    is_live: bool = False
-    booking_url: str | None = None
-
-
-class HotelOption(BaseModel):
-    id: str
-    source: str
-    name: str
-    city: str
-    checkin: date
-    checkout: date
-    total_price_krw: int = Field(ge=0, description='Total stay cost for all travelers')
-    seller: str | None = None
-    is_live: bool = False
-    booking_url: str | None = None
-
-
-class TripCombination(BaseModel):
-    id: str
-    transport: TransportOption
-    hotel: HotelOption
-    budget: MoneyBreakdown
-    strategy: Literal['budget', 'balanced', 'comfort']
-    notes: list[str] = Field(default_factory=list)
-
-
-class ItineraryDay(BaseModel):
-    day: int
-    area: str
-    stops: list[str]
-
-
-class PlanResponse(BaseModel):
-    requirements: TripRequirements
-    missing_fields: list[str]
-    combinations: list[TripCombination]
-    quote_status: Literal['mock', 'live']
-    message: str
-    gemini_called: bool
-    prompt_tokens: int | None = None
-    output_tokens: int | None = None
-    transport_options: list[TransportOption] = Field(default_factory=list)
-    hotel_options: list[HotelOption] = Field(default_factory=list)
-    itinerary: list[ItineraryDay] = Field(default_factory=list)
-    assumed_return_date: date | None = None
 
 
 class RepriceRequest(BaseModel):

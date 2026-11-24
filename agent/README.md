@@ -1,61 +1,45 @@
-# TRUPASS Agent
+# TRUPASS Agent · 여행 조건 추출 (8001)
 
-| 구성 | 용도 | 로컬 포트 |
-| --- | --- | --- |
-| `src/trupass_agent/` | Spring Core가 사용하는 Google ADK 에이전트 | 8001 |
-| `trupass-ai/` | Gemini로 여행 조건을 추출하고 mock-merchant 오퍼를 조합하는 별도 FastAPI 플래너 | 8002 |
+세 질문의 원문은 서로 다른 필드로 메모리에 보관한다. Gemini는 저장한 답변에서 검색 조건을 추출한다. BE가 이 JSON을 사용해 후기 평점 필터, 상품 검색, 조합을 수행한다.
 
-기존 ADK 에이전트 실행 방법은 [루트 README](../README.md)를 참고한다. 아래 플래너는 자체 가상환경과 의존성 파일을 사용한다. 기존 Docker 이미지에는 포함되지 않으며 Core의 `/compose` 호출에도 연결되어 있지 않다.
+## 실행
 
-## 옮긴 코드와 변경 사항
-
-- 로컬 `trupass-ai`의 앱, 테스트, 의존성, 환경변수 예제를 `agent/trupass-ai/`에 복사했다. 개인 키가 들어 있는 `.env`와 가상환경은 별도로 관리한다.
-- `TRUPASS_PROVIDER_MODE=mock-merchant`로 실행하면 Spring 판매자 A의 항공편과 판매자 B의 숙소를 `127.0.0.1:9001`에서 조회한다. 응답에는 카탈로그 오퍼 ID와 금액이 들어간다. `mock` 모드는 Python 내부의 가상 데이터를 사용한다.
-- Gemini는 자연어 조건 추출에 사용한다. 오퍼 조합과 예산 계산은 Python에서 처리한다. 같은 날 같은 요청의 추출 결과는 메모리 캐시에서 재사용할 수 있다.
-
-## 로컬 실행
-
-루트에서 PowerShell 터미널을 열고 mock-merchant를 실행한다.
+저장소 루트에서 실행한다. 환경 파일에 `GEMINI_API_KEY`(또는 `GOOGLE_API_KEY`), `GEMINI_MODEL`, `INTERNAL_API_KEY`를 설정한다.
 
 ```powershell
-$env:SERVER_ADDRESS = '127.0.0.1'
-.\gradlew.bat :mock-merchant:bootRun
-```
-
-별도 PowerShell 터미널에서 플래너를 실행한다. 팀 실행 환경은 Python 3.14를 사용한다. `uv`가 없으면 `winget install --id=astral-sh.uv -e`로 설치한 뒤 PowerShell을 새로 연다. `trupass-ai/pyproject.toml`은 플래너의 의존성을 선언하고, 같은 폴더의 `uv.lock`은 설치 버전을 고정한다. 상위 `agent/uv.lock`은 기존 ADK 에이전트용이다.
-
-```powershell
-Set-Location agent/trupass-ai
+Set-Location agent
 uv sync --locked --python 3.14
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# .env에 로컬 키를 설정한 뒤 실행
-$env:TRUPASS_PROVIDER_MODE = 'mock-merchant'
-uv run --locked --python 3.14 uvicorn app.main:app --host 127.0.0.1 --port 8002
+uv run --locked --python 3.14 uvicorn trupass_agent.main:app --env-file "$env:USERPROFILE\Desktop\trupass-ai\.env" --host 127.0.0.1 --port 8001
 ```
 
-`.env`에 `GEMINI_API_KEY`와 `INTERNAL_API_KEY`를 설정한다. 모델은 코드 기본값을 사용하거나 해당 키로 사용할 수 있는 모델을 `GEMINI_MODEL`에 지정한다.
+## Swagger에서 사용하기
 
-`GET /health`의 `provider`가 `mock-merchant`인지 확인한다. 요청은 [로컬 API 문서](http://127.0.0.1:8002/docs)에서 실행할 수 있다. `POST /api/v1/trips/plan`의 `X-Internal-API-Key` 헤더에는 로컬 `.env`의 내부 키를 넣는다.
+[로컬 Swagger](http://127.0.0.1:8001/docs)에서 각 요청의 `X-Internal-API-Key` 헤더에 내부 키를 넣는다.
+
+1. `POST /api/v1/trips/prompts`에 여행·숙소·목적 중 하나 이상을 보내면 Gemini 호출 없이 `prompt_id`가 발급된다.
+2. 같은 API에 `prompt_id`와 변경할 필드만 보내면 해당 답변을 교체한다. 빈 문자열이나 null은 해당 필드를 비운다. `GET /api/v1/trips/prompts/{prompt_id}`로 현재 답변을 확인한다.
+3. `POST /api/v1/trips/plan`에 `prompt_id`를 보내면 저장된 답변을 분석한다. 처음부터 세 답변을 이 API에 직접 보내도 된다.
+4. 프롬프트별 파일이 필요하면 `POST /api/v1/trips/prompts/{prompt_id}/export`에 같은 ID를 넣고 실행한 뒤 **Download file**을 누른다. ZIP 안의 `travel.json`, `accommodation.json`, `purpose.json`에는 각각 여행(출발지 힌트 포함), 숙소, 목적 입력만으로 추출한 조건이 들어간다. 빈 입력의 파일은 `{}`이다. 세 입력이 모두 있으면 최초 내보내기에 Gemini 호출이 최대 3회 필요하며, 같은 입력은 캐시 유효 기간 동안 재사용한다.
 
 ```json
 {
-  "prompt": "12월 18일쯤 인천에서 도쿄, 아침 출발, 성인 2명",
-  "accommodation_prompt": "미술관 근처 조용한 호텔",
-  "purpose_prompt": "미술관과 건축물 탐방"
+  "prompt": "도쿄에 가고 싶어",
+  "accommodation_prompt": "실제 여행자 평점 4.5 이상인 숙소",
+  "purpose_prompt": "가족과 대화할 시간이 가장 중요해. 함께 푹 쉬고 싶어."
 }
 ```
 
-세 입력은 Gemini 한 번에 전달한다. 응답의 `transport_options`, `hotel_options`, `itinerary`가 각 추천 목록이다. 귀국일이 없으면 검색에만 2박을 가정하고 `assumed_return_date`에 표시한다. 예산을 입력하면 `combinations`에서 예산 기준 조합도 확인할 수 있다.
+예상되는 requirements에는 destination, min_traveler_rating(4.5), core_travel_goal, desired_satisfaction 등이 들어간다. 인원이나 예산을 말하지 않으면 해당 키는 생략한다. 평점은 BE에 전달할 최소 조건이며, 실제 후기 조회는 BE에서 수행한다.
 
-## 활용 범위
+[검색 조건 스키마와 추출 기준](trupass-ai/app/prompts/extract_trip_requirements.md)을 모델 지시문으로 직접 읽는다. 필드를 추가하면 `app/domain/models.py`의 TripRequirements 검증 규칙도 함께 갱신한다.
 
-- 로컬 mock-merchant 모드에서 인천 출발 도쿄·오사카·후쿠오카 왕복 항공과 숙소를 추천한다. 플래너 내부의 가상 항공 판매자 3곳과 숙소 판매자 3곳을 제공하고, 오사카·후쿠오카에는 Spring의 기존 오퍼도 포함한다. Spring 숙소 오퍼는 2박 조건에만 포함된다.
-- 항공 출발 시간과 가상 숙소 요금은 데모 값이다. 가상 숙소는 객실당 최대 2명을 가정하고 숙박 일수와 객실 수로 가격을 계산한다. Spring 숙소 금액은 기존 2박 오퍼 금액을 그대로 사용한다.
-- 일정은 도쿄·오사카·후쿠오카의 사전 작성된 미술·건축, 미식, 일반 관광 코스에서 추천한다. 운영 시간과 이동 시간은 검증하지 않는다. 현지 교통비와 기타 비용은 고정 추정치다. 재고 조회, 예약, 결제, 실시간 견적은 지원하지 않는다.
-- `POST /api/v1/trips/reprice`는 요청에 포함된 금액으로 예산을 다시 계산한다. 결제 금액이나 확정 견적에는 사용할 수 없다.
-- 서버는 로컬에서 실행된다. 자연어 파싱은 캐시 미스 시 Google Gemini API를 호출하므로 인터넷 연결과 유효한 키가 필요하다. 기존 테스트는 외부 Gemini 호출 없이 실행된다.
+원문은 서버 프로세스 메모리에 저장되며 재시작 시 초기화된다. 기본 보관 시간은 마지막 저장 후 600초, 최대 256건이다(`PROMPT_TTL_SECONDS`, `PROMPT_MAX_ENTRIES`). 여러 프로세스는 메모리를 공유하지 않는다. 추출 결과 캐시는 독립적이며 세 답변의 조합이 바뀌면 새로 분석한다.
+
+## BE 연동 변경
+
+기존 패키지 생성 경로 `/compose`는 제거했다. Core에서 해당 경로를 사용하는 호출자는 내부 키와 함께 `/api/v1/trips/plan`을 호출하고 응답의 `requirements`를 읽도록 변경해야 한다. `/api/v1/trips/reprice`는 입력 금액의 합계와 예산 차이를 계산한다.
 
 ```powershell
-# agent/trupass-ai에서 실행
-uv run --locked --python 3.14 pytest -q
+# agent에서 실행
+uv run --locked --python 3.14 pytest -q tests trupass-ai/tests
 ```

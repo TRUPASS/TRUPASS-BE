@@ -8,8 +8,8 @@ from app.core.cache import TTLCache
 from app.domain.models import TripInput, TripRequirements
 
 
-PROMPT_PATH = Path(__file__).resolve().parents[2] / 'prompts' / 'extract_trip_requirements.md'
-SYSTEM_INSTRUCTION = ' '.join(PROMPT_PATH.read_text(encoding='utf-8').splitlines())
+PROMPT_PATH = Path(__file__).resolve().parents[1] / 'prompts' / 'extract_trip_requirements.md'
+SYSTEM_INSTRUCTION = PROMPT_PATH.read_text(encoding='utf-8')
 
 
 class GeminiAnalyzer:
@@ -36,8 +36,15 @@ class GeminiAnalyzer:
         if not self._key:
             raise RuntimeError('GEMINI_API_KEY is not configured')
 
-        from google.genai import types
         user_text = json.dumps({'today': today, **payload}, ensure_ascii=False, separators=(',', ':'))
+        requirements, prompt_tokens, output_tokens = self._extract(user_text)
+        if not requirements.origin and request.origin_hint:
+            requirements.origin = request.origin_hint
+        self._cache.put(cache_key, requirements.model_copy(deep=True))
+        return requirements, True, prompt_tokens, output_tokens
+
+    def _extract(self, user_text: str) -> tuple[TripRequirements, int | None, int | None]:
+        from google.genai import types
         response = self._get_client().models.generate_content(
             model=self._model,
             contents=user_text,
@@ -55,10 +62,7 @@ class GeminiAnalyzer:
             requirements = TripRequirements.model_validate_json(response.text)
         else:
             raise RuntimeError('Empty Gemini analysis response')
-        if not requirements.origin and request.origin_hint:
-            requirements.origin = request.origin_hint
-        self._cache.put(cache_key, requirements.model_copy(deep=True))
         usage = response.usage_metadata
-        return (requirements, True,
+        return (requirements,
                 getattr(usage, 'prompt_token_count', None),
                 getattr(usage, 'candidates_token_count', None))

@@ -12,6 +12,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
 COPY README.md ./
 COPY src ./src
+COPY trupass-ai/app ./trupass-ai/app
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
 FROM python:3.14-slim

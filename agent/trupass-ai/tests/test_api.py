@@ -1,11 +1,22 @@
+from io import BytesIO
+import json
+from zipfile import ZipFile
+
 from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.main import create_app
+from app.domain.models import TripRequirements
+from app.services.analyzer import SYSTEM_INSTRUCTION
+from pydantic import ValidationError
+from unittest.mock import Mock
+import pytest
 
 
 def test_health_and_auth(monkeypatch):
     monkeypatch.setenv('INTERNAL_API_KEY', 'test-secret-token')
     get_settings.cache_clear()
+
+
     client = TestClient(create_app())
     assert client.get('/health').status_code == 200
     payload = {'budget_krw': 100000, 'transport_krw': 40000, 'hotel_krw': 50000,
@@ -19,31 +30,92 @@ def test_health_and_auth(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_plan_endpoint_without_gemini(monkeypatch):
-    from datetime import date, timedelta
-    from app.domain.models import TripRequirements
-    from app.services.planner import TripPlanner
-    from app.providers.mock import MockTravelProvider
-    from app.services.combiner import CombinationEngine
-    from app.services.budget import BudgetCalculator
-
-    class FakeAnalyzer:
-        def analyze(self, request):
-            dep = date.today() + timedelta(days=20)
-            return (TripRequirements(origin='서울', destination='부산',
-                                    departure_date=dep, return_date=dep+timedelta(days=2),
-                                    budget_krw=900000), False, 0, 0)
-
-    monkeypatch.setenv('INTERNAL_API_KEY', 'test-secret-token')
+def test_prompt_edits_are_isolated_and_extraction_is_sparse(monkeypatch):
+    monkeypatch.setenv('INTERNAL_API_KEY', 'test')
     get_settings.cache_clear()
     app = create_app()
-    app.state.planner = TripPlanner(FakeAnalyzer(), MockTravelProvider(),
-                                    CombinationEngine(BudgetCalculator()))
-    resp = TestClient(app).post('/api/v1/trips/plan',
-         json={'prompt': '내년에 서울에서 부산으로 여행하고 싶어요'},
-         headers={'X-Internal-API-Key': 'test-secret-token'})
-    assert resp.status_code == 200, resp.text
-    assert len(resp.json()['combinations']) == 3
-    assert resp.json()['gemini_called'] is False
-    assert resp.json()['quote_status'] == 'mock'
+    with TestClient(app, headers={'X-Internal-API-Key': 'test'}) as client:
+        def save(**fields):
+            response = client.post('/api/v1/trips/prompts', json=fields)
+            assert response.status_code == 200
+            return response.json()['prompt_id']
+
+        first = save(prompt='도쿄', accommodation_prompt='역 근처')
+        second = save(purpose_prompt='휴식')
+        save(prompt_id=first, accommodation_prompt='여행자 평점 4.5 이상',
+             purpose_prompt='가장 중요한 건 가족과 대화하는 것. 함께 쉬고 싶어')
+        assert client.get(f'/api/v1/trips/prompts/{second}').json()['prompts']['purpose_prompt'] == '휴식'
+        fields = client.get(f'/api/v1/trips/prompts/{first}').json()['prompts']
+        assert fields['prompt'] == '도쿄' and fields['accommodation_prompt'] == '여행자 평점 4.5 이상'
+        conditions = TripRequirements(destination='도쿄', core_travel_goal='가족과 대화', desired_satisfaction='함께 휴식',
+                                      min_traveler_rating=4.5, additional_cities=[])
+        analyze = Mock(return_value=(conditions, True, 20, 10))
+        monkeypatch.setattr(app.state.analyzer, 'analyze', analyze)
+        result = client.post('/api/v1/trips/plan', json={'prompt_id': first}).json()
+        assert analyze.call_args.args[0].purpose_prompt == fields['purpose_prompt']
+        assert result['requirements'] == conditions.model_dump(exclude_none=True)
+        assert set(result['requirements']) == {'destination', 'core_travel_goal', 'desired_satisfaction', 'min_traveler_rating'}
+        assert 'combinations' not in result
+        save(prompt_id=first, accommodation_prompt=None)
+        assert 'accommodation_prompt' not in client.get(f'/api/v1/trips/prompts/{first}').json()['prompts']
+        assert client.post('/api/v1/trips/prompts', json={}).status_code == 422
+        assert client.post('/api/v1/trips/plan', json={'prompt_id': 'ffffffff-ffff-4fff-8fff-ffffffffffff'}).status_code == 404
+    get_settings.cache_clear()
+
+
+def test_rating_range_and_schema_documentation():
+    for score in (1, 4.5, 5):
+        assert TripRequirements(min_traveler_rating=score).min_traveler_rating == score
+    for score in (0.9, 5.1):
+        with pytest.raises(ValidationError):
+            TripRequirements(min_traveler_rating=score)
+    assert TripRequirements().model_dump(exclude_none=True) == {}
+    for name in TripRequirements.model_fields:
+        assert f'| {name} |' in SYSTEM_INSTRUCTION
+
+
+def test_export_writes_three_independent_utf8_files(monkeypatch):
+    monkeypatch.setenv('INTERNAL_API_KEY', 'test')
+    get_settings.cache_clear()
+    app = create_app()
+    calls = []
+
+    def analyze(section):
+        calls.append(section.model_dump(exclude_none=True, exclude={'currency'}))
+        if section.prompt:
+            result = TripRequirements(destination='도쿄', origin=section.origin_hint)
+        elif section.accommodation_prompt:
+            result = TripRequirements(min_traveler_rating=4.5)
+        else:
+            result = TripRequirements(desired_satisfaction='재충전')
+        return result, True, 4, 2
+
+    monkeypatch.setattr(app.state.analyzer, 'analyze', analyze)
+    with TestClient(app) as client:
+        headers = {'X-Internal-API-Key': 'test'}
+        saved = client.post('/api/v1/trips/prompts', headers=headers, json={
+            'prompt': '도쿄', 'origin_hint': '인천', 'accommodation_prompt': '후기 4.5 이상', 'purpose_prompt': '재충전'})
+        prompt_id = saved.json()['prompt_id']
+        path = f'/api/v1/trips/prompts/{prompt_id}/export'
+        assert client.post(path).status_code == 401
+        response = client.post(path, headers=headers)
+        assert response.status_code == 200
+        assert response.headers['content-type'] == 'application/zip'
+        assert 'attachment;' in response.headers['content-disposition']
+        with ZipFile(BytesIO(response.content)) as files:
+            assert {name: json.loads(files.read(name)) for name in files.namelist()} == {
+                'travel.json': {'origin': '인천', 'destination': '도쿄'},
+                'accommodation.json': {'min_traveler_rating': 4.5},
+                'purpose.json': {'desired_satisfaction': '재충전'},
+            }
+        assert calls == [{'prompt': '도쿄', 'origin_hint': '인천'},
+                         {'accommodation_prompt': '후기 4.5 이상'}, {'purpose_prompt': '재충전'}]
+        client.post('/api/v1/trips/prompts', headers=headers, json={'prompt_id': prompt_id, 'purpose_prompt': None})
+        calls.clear()
+        with ZipFile(BytesIO(client.post(path, headers=headers).content)) as files:
+            assert json.loads(files.read('purpose.json')) == {}
+        assert len(calls) == 2
+        monkeypatch.setattr(app.state.analyzer, 'analyze', Mock(side_effect=RuntimeError()))
+        failure = client.post(path, headers=headers)
+        assert failure.status_code == 503 and failure.json()['detail']['prompt_id'] == prompt_id
     get_settings.cache_clear()

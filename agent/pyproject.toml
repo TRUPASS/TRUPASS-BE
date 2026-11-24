@@ -14,6 +14,7 @@ dependencies = [
     "pydantic==2.12.5",
     "pydantic-settings==2.16.2",
     "httpx==0.28.1",
+    "tzdata; sys_platform == 'win32'",
     # AP2 Python SDK. PyPI의 `ap2`는 제3자 미러이므로 공식 GitHub 저장소를 커밋으로 고정해 설치한다.
     "ap2",
 ]
@@ -34,7 +35,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/trupass_agent"]
+packages = ["src/trupass_agent", "trupass-ai/app"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src", "trupass-ai"]
 
 [tool.ruff]
 line-length = 120
