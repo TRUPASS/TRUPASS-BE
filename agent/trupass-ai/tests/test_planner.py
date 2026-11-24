@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from app.core.cache import TTLCache
-from app.domain.models import TripInput, TripRequirements, TransportKind
+from app.domain.models import (HotelOption, TransportOption, TripInput, TripRequirements,
+                               TransportKind)
 from app.providers.mock import MockTravelProvider
 from app.services.budget import BudgetCalculator
 from app.services.combiner import CombinationEngine
@@ -40,6 +41,54 @@ def test_missing_required_fields_do_not_search():
     assert 'origin' in response.missing_fields
     assert 'budget_krw' not in response.missing_fields
     assert response.combinations == []
+
+
+def test_missing_or_past_departure_does_not_search():
+    class RecordingProvider(MockTravelProvider):
+        searches = 0
+
+        def search_transport(self, requirements):
+            self.searches += 1
+            return super().search_transport(requirements)
+
+    requirements = [
+        TripRequirements(destination='부산'),
+        TripRequirements(origin='서울', destination='부산', departure_date=date.today() - timedelta(days=1)),
+    ]
+    for req in requirements:
+        provider = RecordingProvider()
+        response = TripPlanner(FakeAnalyzer(req), provider,
+                               CombinationEngine(BudgetCalculator())).plan(TripInput(prompt='부산으로 여행가고 싶습니다'))
+        assert provider.searches == 0
+        assert response.combinations == []
+
+
+def test_strategy_duplicates_are_filled_by_next_cheapest_candidate():
+    departure = date.today() + timedelta(days=10)
+    req = TripRequirements(origin='서울', destination='부산', departure_date=departure,
+                           return_date=departure + timedelta(days=2), budget_krw=1_000_000)
+    transports = [
+        TransportOption(id='cheap', source='test', kind=TransportKind.TRAIN, origin='서울',
+                        destination='부산', departure_date=departure, return_date=req.return_date,
+                        total_price_krw=190_000, duration_minutes=200),
+        TransportOption(id='fast', source='test', kind=TransportKind.TRAIN, origin='서울',
+                        destination='부산', departure_date=departure, return_date=req.return_date,
+                        total_price_krw=200_000, duration_minutes=90),
+    ]
+    hotels = [
+        HotelOption(id='cheap-hotel', source='test', name='cheap', city='부산', checkin=departure,
+                    checkout=req.return_date, total_price_krw=100_000),
+        HotelOption(id='balanced-hotel', source='test', name='balanced', city='부산', checkin=departure,
+                    checkout=req.return_date, total_price_krw=520_000),
+        HotelOption(id='next', source='test', name='next', city='부산', checkin=departure,
+                    checkout=req.return_date, total_price_krw=270_000),
+    ]
+
+    result = CombinationEngine(BudgetCalculator()).combine(
+        req, transports, {transport.id: hotels for transport in transports})
+
+    assert [item.id for item in result] == ['cheap--cheap-hotel', 'fast--balanced-hotel', 'fast--cheap-hotel']
+    assert [item.strategy for item in result] == ['budget', 'balanced', 'balanced']
 
 
 def test_three_combinations_and_hotel_date_alignment():
