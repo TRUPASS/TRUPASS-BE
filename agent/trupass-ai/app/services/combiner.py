@@ -29,19 +29,21 @@ class CombinationEngine:
         if not candidates:
             return []
         # Diversify 3 proposals: cheapest, median-cost, more comfort/shorter travel.
-        cheapest = min(candidates, key=lambda c: (c.budget.total_krw, c.transport.duration_minutes))
-        balanced = min(candidates, key=lambda c: (
-            abs(c.budget.total_krw - int(req.budget_krw * .85)), c.transport.duration_minutes))
-        comfort = min(candidates, key=lambda c: (
-            c.transport.duration_minutes, -c.hotel.total_price_krw, c.budget.total_krw))
+        cheapest = min(candidates, key=lambda item: (item.budget.total_krw, item.transport.duration_minutes))
+        balanced = min(candidates, key=lambda item: (
+            abs(item.budget.total_krw - int(req.budget_krw * .85)), item.transport.duration_minutes))
+        comfort = min(candidates, key=lambda item: (
+            item.transport.duration_minutes, -item.hotel.total_price_krw, item.budget.total_krw))
         result = []
-        for item, strategy in [(cheapest, 'budget'), (balanced, 'balanced'), (comfort, 'comfort')]:
-            if item.id not in {x.id for x in result}:
+        selected_ids = set()
+        for item, strategy in ((cheapest, 'budget'), (balanced, 'balanced'), (comfort, 'comfort')):
+            if item.id not in selected_ids:
                 result.append(item.model_copy(update={'strategy': strategy}))
-        # Fill remaining slots if 2 strategies chose the same item.
-        for candidate in sorted(candidates, key=lambda c: c.budget.total_krw):
+                selected_ids.add(item.id)
+        for candidate in sorted(candidates, key=lambda item: item.budget.total_krw):
             if len(result) >= 3:
                 break
-            if candidate.id not in {x.id for x in result}:
+            if candidate.id not in selected_ids:
                 result.append(candidate.model_copy(update={'strategy': 'balanced'}))
+                selected_ids.add(candidate.id)
         return result[:3]
