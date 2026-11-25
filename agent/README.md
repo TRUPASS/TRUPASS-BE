@@ -14,12 +14,14 @@ uv run --locked --python 3.14 uvicorn trupass_agent.main:app --env-file "$env:US
 
 ## Swagger에서 사용하기
 
+`POST /api/v1/trips/export`에 아래 예시의 세 답변과 내부 키를 넣고 실행하면 Swagger의 **Server response → Response body**에 통합 JSON이 표시된다. 서버가 자동 생성한 ID는 응답 헤더 `X-Prompt-ID`에서 확인할 수 있다.
+
 [로컬 Swagger](http://127.0.0.1:8001/docs)에서 각 요청의 `X-Internal-API-Key` 헤더에 내부 키를 넣는다.
 
 1. `POST /api/v1/trips/prompts`에 여행·숙소·목적 중 하나 이상을 보내면 Gemini 호출 없이 `prompt_id`가 발급된다.
 2. 같은 API에 `prompt_id`와 변경할 필드만 보내면 해당 답변을 교체한다. 빈 문자열이나 null은 해당 필드를 비운다. `GET /api/v1/trips/prompts/{prompt_id}`로 현재 답변을 확인한다.
 3. `POST /api/v1/trips/plan`에 `prompt_id`를 보내면 저장된 답변을 분석한다. 처음부터 세 답변을 이 API에 직접 보내도 된다.
-4. 프롬프트별 파일이 필요하면 `POST /api/v1/trips/prompts/{prompt_id}/export`에 같은 ID를 넣고 실행한 뒤 **Download file**을 누른다. ZIP 안의 `travel.json`, `accommodation.json`, `purpose.json`에는 각각 여행(출발지 힌트 포함), 숙소, 목적 입력만으로 추출한 조건이 들어간다. 빈 입력의 파일은 `{}`이다. 세 입력이 모두 있으면 최초 내보내기에 Gemini 호출이 최대 3회 필요하며, 같은 입력은 캐시 유효 기간 동안 재사용한다.
+4. 통합 결과를 파일로 받으려면 `POST /api/v1/trips/prompts/{prompt_id}/export`에 같은 ID를 입력한다. 세 답변을 한 번에 분석한 조건을 `trip-{prompt_id}.json`으로 내려받는다. 같은 입력은 /plan과 추출 캐시를 공유한다.
 
 ```json
 {

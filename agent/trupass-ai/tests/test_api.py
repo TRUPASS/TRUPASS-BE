@@ -1,6 +1,3 @@
-from io import BytesIO
-import json
-from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 from app.core.config import get_settings
@@ -74,22 +71,12 @@ def test_rating_range_and_schema_documentation():
         assert f'| {name} |' in SYSTEM_INSTRUCTION
 
 
-def test_export_writes_three_independent_utf8_files(monkeypatch):
+def test_export_writes_one_combined_json(monkeypatch):
     monkeypatch.setenv('INTERNAL_API_KEY', 'test')
     get_settings.cache_clear()
     app = create_app()
-    calls = []
-
-    def analyze(section):
-        calls.append(section.model_dump(exclude_none=True, exclude={'currency'}))
-        if section.prompt:
-            result = TripRequirements(destination='도쿄', origin=section.origin_hint)
-        elif section.accommodation_prompt:
-            result = TripRequirements(min_traveler_rating=4.5)
-        else:
-            result = TripRequirements(desired_satisfaction='재충전')
-        return result, True, 4, 2
-
+    conditions = TripRequirements(destination='도쿄', origin='인천', min_traveler_rating=4.5, desired_satisfaction='재충전')
+    analyze = Mock(return_value=(conditions, True, 4, 2))
     monkeypatch.setattr(app.state.analyzer, 'analyze', analyze)
     with TestClient(app) as client:
         headers = {'X-Internal-API-Key': 'test'}
@@ -100,21 +87,20 @@ def test_export_writes_three_independent_utf8_files(monkeypatch):
         assert client.post(path).status_code == 401
         response = client.post(path, headers=headers)
         assert response.status_code == 200
-        assert response.headers['content-type'] == 'application/zip'
-        assert 'attachment;' in response.headers['content-disposition']
-        with ZipFile(BytesIO(response.content)) as files:
-            assert {name: json.loads(files.read(name)) for name in files.namelist()} == {
-                'travel.json': {'origin': '인천', 'destination': '도쿄'},
-                'accommodation.json': {'min_traveler_rating': 4.5},
-                'purpose.json': {'desired_satisfaction': '재충전'},
-            }
-        assert calls == [{'prompt': '도쿄', 'origin_hint': '인천'},
-                         {'accommodation_prompt': '후기 4.5 이상'}, {'purpose_prompt': '재충전'}]
-        client.post('/api/v1/trips/prompts', headers=headers, json={'prompt_id': prompt_id, 'purpose_prompt': None})
-        calls.clear()
-        with ZipFile(BytesIO(client.post(path, headers=headers).content)) as files:
-            assert json.loads(files.read('purpose.json')) == {}
-        assert len(calls) == 2
+        assert response.headers['content-type'] == 'application/json'
+        assert response.headers['content-disposition'] == f'attachment; filename="trip-{prompt_id}.json"'
+        assert response.json() == {'destination': '도쿄', 'origin': '인천', 'min_traveler_rating': 4.5,
+                                   'desired_satisfaction': '재충전'}
+        analyze.assert_called_once()
+        prompts = analyze.call_args.args[0]
+        assert (prompts.prompt, prompts.accommodation_prompt, prompts.purpose_prompt) == ('도쿄', '후기 4.5 이상', '재충전')
+        direct = client.post('/api/v1/trips/export', headers=headers, json=prompts.model_dump(exclude_none=True))
+        assert direct.status_code == 200 and direct.json() == response.json()
+        new_id = direct.headers['X-Prompt-ID']
+        assert new_id != prompt_id
+        assert 'Content-Disposition' not in direct.headers
+        assert direct.headers['content-type'] == 'application/json'
+        assert client.get(f'/api/v1/trips/prompts/{new_id}', headers=headers).json()['prompts']['prompt'] == '도쿄'
         monkeypatch.setattr(app.state.analyzer, 'analyze', Mock(side_effect=RuntimeError()))
         failure = client.post(path, headers=headers)
         assert failure.status_code == 503 and failure.json()['detail']['prompt_id'] == prompt_id

@@ -1,12 +1,10 @@
 import hmac
-from io import BytesIO
 from uuid import UUID
-from zipfile import ZIP_DEFLATED, ZipFile
 import httpx
 from google.genai.errors import APIError
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from app.core.config import get_settings
-from app.domain.models import PromptUpdate, SavedPrompts, PlanResponse, RepriceRequest, MoneyBreakdown, TripInput
+from app.domain.models import PromptUpdate, SavedPrompts, PlanResponse, RepriceRequest, MoneyBreakdown, TripInput, TripRequirements
 from app.services.budget import BudgetCalculator
 
 router = APIRouter(prefix='/api/v1')
@@ -48,26 +46,29 @@ def _analyze(request: Request, prompts: TripInput, prompt_id: UUID):
                                         'prompt_id': str(prompt_id)}) from None
 
 
-@router.post('/trips/prompts/{prompt_id}/export', response_class=Response,
-             responses={200: {'content': {'application/zip': {'schema': {'type': 'string', 'format': 'binary'}}}}},
-             dependencies=[Depends(require_internal_key)], summary='여행·숙소·목적 조건을 JSON 파일 3개로 다운로드')
+@router.post('/trips/prompts/{prompt_id}/export', response_model=TripRequirements,
+             response_model_exclude_none=True, dependencies=[Depends(require_internal_key)],
+             summary='여행·숙소·목적 조건을 하나의 JSON 파일로 다운로드')
 def export_prompts(prompt_id: UUID, request: Request) -> Response:
-    prompts = get_prompts(prompt_id, request).prompts
-    sections = (
-        ('travel.json', TripInput(prompt=prompts.prompt, origin_hint=prompts.origin_hint)),
-        ('accommodation.json', TripInput(accommodation_prompt=prompts.accommodation_prompt)),
-        ('purpose.json', TripInput(purpose_prompt=prompts.purpose_prompt)),
-    )
-    buffer = BytesIO()
-    with ZipFile(buffer, 'w', compression=ZIP_DEFLATED) as archive:
-        for filename, section in sections:
-            content = '{}'
-            if any((section.prompt, section.origin_hint, section.accommodation_prompt, section.purpose_prompt)):
-                conditions, *_ = _analyze(request, section, prompt_id)
-                content = conditions.model_dump_json(indent=2, exclude_none=True)
-            archive.writestr(filename, content + '\n')
-    return Response(buffer.getvalue(), media_type='application/zip', headers={
-        'Content-Disposition': f'attachment; filename="trip-{prompt_id}.zip"',
+    return _json_file(get_prompts(prompt_id, request), request)
+
+
+@router.post('/trips/export', response_model=TripRequirements, response_model_exclude_none=True,
+             dependencies=[Depends(require_internal_key)], summary='세 프롬프트의 추출 결과를 JSON으로 보기')
+def export_trip(prompts: TripInput, request: Request, response: Response) -> TripRequirements:
+    saved = save_prompts(PromptUpdate(**prompts.model_dump(exclude_unset=True)), request)
+    conditions, *_ = _analyze(request, saved.prompts, saved.prompt_id)
+    response.headers['X-Prompt-ID'] = str(saved.prompt_id)
+    response.headers['Cache-Control'] = 'no-store'
+    return conditions
+
+
+def _json_file(saved: SavedPrompts, request: Request) -> Response:
+    prompt_id = saved.prompt_id
+    conditions, *_ = _analyze(request, saved.prompts, prompt_id)
+    return Response(conditions.model_dump_json(indent=2, exclude_none=True), media_type='application/json', headers={
+        'Content-Disposition': f'attachment; filename="trip-{prompt_id}.json"',
+        'X-Prompt-ID': str(prompt_id),
         'Cache-Control': 'no-store',
     })
 
