@@ -3,6 +3,7 @@ package com.trupass.core.domain.auth.service;
 import com.trupass.core.domain.auth.entity.RefreshToken;
 import com.trupass.core.domain.auth.exception.AuthErrorCode;
 import com.trupass.core.domain.auth.repository.RefreshTokenRepository;
+import com.trupass.core.domain.user.event.UserWithdrawnEvent;
 import com.trupass.core.global.apiPayload.exception.GeneralException;
 import com.trupass.core.global.config.TrupassProperties;
 import java.nio.charset.StandardCharsets;
@@ -13,6 +14,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,13 @@ public class RefreshTokenService {
     this.refreshTokenRepository = refreshTokenRepository;
     this.properties = properties;
     this.clock = clock;
+  }
+
+  /** 회원이 탈퇴하면 그 회원의 refresh token을 모두 폐기한다. 탈퇴와 같은 트랜잭션에서 동기로 돌아, 탈퇴가 되돌려지면 폐기도 함께 되돌려진다. */
+  @EventListener
+  @Transactional
+  public void onUserWithdrawn(UserWithdrawnEvent event) {
+    refreshTokenRepository.revokeAllByUserId(event.userId(), clock.instant());
   }
 
   /** 새 refresh token을 만들어 저장하고 원문을 돌려준다. */

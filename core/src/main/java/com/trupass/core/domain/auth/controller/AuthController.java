@@ -29,7 +29,9 @@ public class AuthController {
   @Operation(
       summary = "Google 로그인",
       description =
-          "FE가 Google Identity Services로 받은 ID 토큰(credential)을 보내면 검증 후 Trupass 토큰을 발급한다. 처음이면 가입된다.")
+          "FE가 Google Identity Services로 받은 ID 토큰(credential)을 보내면 검증 후 Trupass 토큰을 발급한다. 처음이면 가입된다. "
+              + "user.profileCompleted 가 false 면(처음 가입했거나 회원 정보 입력을 마치지 않고 나간 경우) "
+              + "회원 정보 입력(PUT /users/me/profile)으로 보낸다.")
   public ApiResponse<AuthResDTO.Login> loginWithGoogle(
       @Valid @RequestBody AuthReqDTO.GoogleLogin request) {
     return ApiResponse.onSuccess(authService.loginWithGoogle(request));
