@@ -35,6 +35,20 @@ services:
       timeout: 3s
       retries: 10
 
+  # access token 폐기 기준 시각(TTL 30분)만 둔다. 외부에 포트를 열지 않는다.
+  # 재시작하면 메모리가 비어 이미 폐기한 토큰이 다시 통과하므로, 스냅샷 대신 AOF로 쓰기를 남겨 되살린다.
+  redis:
+    image: redis:8.12.0-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "yes", "--maxmemory", "64mb"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   mock-merchant:
     image: ghcr.io/trupass/trupass-mock-merchant:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -54,6 +68,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       TRUPASS_AUDIT_LOCAL_DIR: /app/data/audit
+      REDIS_HOST: redis
     volumes:
       - audit-data:/app/data/audit
     depends_on:
@@ -61,6 +76,9 @@ services:
         condition: service_healthy
       mock-merchant:
         condition: service_healthy
+      # fail-open이라 Redis가 건강해질 때까지 기다리지 않는다. 떠 있기만 하면 된다.
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -90,4 +108,5 @@ volumes:
   caddy-data:
   caddy-config:
   postgres-data:
+  redis-data:
   audit-data:

@@ -44,6 +44,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       TRUPASS_AUDIT_LOCAL_DIR: /app/data/audit
+      REDIS_HOST: redis
     ports:
       - "8080:8080"
     volumes:
@@ -53,6 +54,9 @@ services:
         condition: service_healthy
       mock-merchant:
         condition: service_healthy
+      # fail-open이라 Redis가 건강해질 때까지 기다리지 않는다. 떠 있기만 하면 된다.
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -80,6 +84,17 @@ services:
       timeout: 3s
       start_period: 20s
       retries: 5
+
+  redis:
+    image: redis:8.12.0-alpine
+    command: ["redis-server", "--save", ""]   # 30분짜리 데이터라 디스크 저장 안 함
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres-data:
