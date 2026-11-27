@@ -32,6 +32,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -48,6 +49,11 @@ class UserAccountFlowTest {
       new PostgreSQLContainer(
           DockerImageName.parse("pgvector/pgvector:0.8.7-pg18")
               .asCompatibleSubstituteFor("postgres"));
+
+  @Container
+  @ServiceConnection(name = "redis")
+  static final GenericContainer<?> redis =
+      new GenericContainer<>(DockerImageName.parse("redis:8.12.0-alpine")).withExposedPorts(6379);
 
   @Autowired MockMvc mockMvc;
   @Autowired JdbcTemplate jdbc;
@@ -90,18 +96,18 @@ class UserAccountFlowTest {
     assertThat(count("user_interests", userId)).isZero();
     assertThat(count("user_agreements", userId)).isZero();
 
-    // 남아 있는 access token으로 오는 요청은 거절한다 (401이라 FE는 재발급을 시도한다)
+    // 남아 있는 access token은 인증 단계에서 폐기된 토큰으로 막힌다 (401이라 FE는 재발급을 시도한다)
     mockMvc
         .perform(get("/users/me").header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("USER401_1"));
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
     putProfile(accessToken, profile(false))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("USER401_1"));
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
     mockMvc
         .perform(delete("/users/me").header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("USER401_1"));
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
     // refresh token은 탈퇴와 함께 모두 폐기됐다
     mockMvc
         .perform(

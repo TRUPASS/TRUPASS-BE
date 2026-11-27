@@ -87,8 +87,8 @@ public class UserService {
 
   /**
    * 회원 탈퇴. 개인정보를 지우고 약관 동의를 모두 거둔 것으로 이력에 남긴 뒤 {@link UserWithdrawnEvent}를 발행한다(같은 트랜잭션에서 auth가
-   * refresh token을 모두 폐기한다). 이미 발급한 access token은 만료(30분)까지 남지만, 탈퇴한 회원으로 오는 요청은 {@code USER401_1}로
-   * 거절한다.
+   * refresh token과 access token을 모두 폐기한다). 남은 access token은 인증 단계에서 {@code COMMON401_1}로 막히고, Redis
+   * 장애로 그 기록이 없더라도 탈퇴한 회원으로 오는 요청은 {@code USER401_1}로 거절한다.
    */
   @Transactional
   public void withdraw(Long userId) {

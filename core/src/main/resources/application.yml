@@ -16,6 +16,14 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  # access token 폐기 기준 시각 저장소(global/security/AccessTokenRevocationStore).
+  # Redis가 죽어도 요청은 통과시키므로(fail-open), 기다리는 시간을 짧게 둔다. 기본값은 60초다.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 200ms
+      connect-timeout: 200ms
 
 server:
   port: 8080
@@ -30,6 +38,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Redis가 죽어도 core는 정상이다(fail-open). health가 DOWN이 되면 배포 --wait 실패와 컨테이너 재시작으로 번진다.
+    redis:
+      enabled: false
 
 # Spring Boot 기본 structured logging(JSON). MDC의 checkout_id가 필드로 함께 찍힌다.
 logging:

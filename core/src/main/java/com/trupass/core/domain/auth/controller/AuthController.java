@@ -44,7 +44,11 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  @Operation(summary = "로그아웃", description = "refresh token을 폐기한다. access token은 만료될 때까지 유효하다.")
+  @Operation(
+      summary = "로그아웃",
+      description =
+          "refresh token을 폐기하고, 이 사용자가 지금까지 발급받은 access token을 모두 막는다(COMMON401_1). "
+              + "다른 기기도 401을 받고 자기 refresh token으로 재발급한다.")
   public ApiResponse<Void> logout(@Valid @RequestBody AuthReqDTO.Logout request) {
     authService.logout(request);
     return ApiResponse.onSuccess(null);

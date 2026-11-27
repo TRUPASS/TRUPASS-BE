@@ -1,5 +1,6 @@
 package com.trupass.core.domain.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -17,10 +18,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -38,7 +41,13 @@ class AuthFlowTest {
           DockerImageName.parse("pgvector/pgvector:0.8.7-pg18")
               .asCompatibleSubstituteFor("postgres"));
 
+  @Container
+  @ServiceConnection(name = "redis")
+  static final GenericContainer<?> redis =
+      new GenericContainer<>(DockerImageName.parse("redis:8.12.0-alpine")).withExposedPorts(6379);
+
   @Autowired MockMvc mockMvc;
+  @Autowired StringRedisTemplate redisTemplate;
 
   @MockitoBean GoogleAuthClient googleAuthClient;
 
@@ -104,6 +113,60 @@ class AuthFlowTest {
   }
 
   @Test
+  void refresh_token_재사용이_감지되면_그때까지_발급된_access_token도_막는다() throws Exception {
+    String login = googleLoginAs("google-sub-reuse").andReturn().getResponse().getContentAsString();
+    String accessToken = JsonPath.read(login, "$.result.tokens.accessToken");
+    String refreshToken = JsonPath.read(login, "$.result.tokens.refreshToken");
+    Integer userId = JsonPath.read(login, "$.result.user.userId");
+
+    // 정상 재발급 뒤, 이미 쓴 refresh token이 다시 오면 탈취로 본다
+    String refreshed = refresh(refreshToken).andReturn().getResponse().getContentAsString();
+    String refreshedAccessToken = JsonPath.read(refreshed, "$.result.accessToken");
+    refresh(refreshToken)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTH401_3"));
+
+    // 재사용 전후로 발급된 access token이 모두 인증 단계에서 막힌다
+    me(accessToken)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    me(refreshedAccessToken)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
+
+    // 기준 시각은 access token 수명(30분)이 지나면 저절로 사라진다
+    String key = "auth:revoked-before:" + userId;
+    assertThat(redisTemplate.opsForValue().get(key)).isNotNull();
+    assertThat(redisTemplate.getExpire(key)).isBetween(1L, 1800L);
+  }
+
+  @Test
+  void 로그아웃하면_access_token도_막히고_다시_로그인하면_새_토큰은_통과한다() throws Exception {
+    String login =
+        googleLoginAs("google-sub-logout").andReturn().getResponse().getContentAsString();
+    String accessToken = JsonPath.read(login, "$.result.tokens.accessToken");
+    String refreshToken = JsonPath.read(login, "$.result.tokens.refreshToken");
+    me(accessToken).andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+        .andExpect(status().isOk());
+
+    me(accessToken)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("COMMON401_1"));
+
+    // iat는 초 단위라 로그아웃과 같은 초에 발급된 토큰도 막힌다. 다음 초로 넘긴 뒤 다시 로그인한다.
+    Thread.sleep(1_000);
+    String again =
+        googleLoginAs("google-sub-logout").andReturn().getResponse().getContentAsString();
+    me(JsonPath.read(again, "$.result.tokens.accessToken")).andExpect(status().isOk());
+  }
+
+  @Test
   void 이메일이_인증되지_않은_Google_계정은_거부한다() throws Exception {
     given(googleAuthClient.verifyIdToken("unverified"))
         .willReturn(
@@ -159,6 +222,17 @@ class AuthFlowTest {
         post("/auth/google")
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"idToken\":\"" + idToken + "\"}"));
+  }
+
+  private ResultActions googleLoginAs(String sub) throws Exception {
+    given(googleAuthClient.verifyIdToken(sub))
+        .willReturn(
+            new GoogleAuthClientResDTO.IdToken(sub, sub + "@example.com", true, "여행자", null));
+    return googleLogin(sub);
+  }
+
+  private ResultActions me(String accessToken) throws Exception {
+    return mockMvc.perform(get("/users/me").header("Authorization", "Bearer " + accessToken));
   }
 
   private ResultActions refresh(String refreshToken) throws Exception {

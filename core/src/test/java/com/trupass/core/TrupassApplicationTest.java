@@ -21,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -38,6 +39,11 @@ class TrupassApplicationTest {
   static final PostgreSQLContainer postgres =
       new PostgreSQLContainer(
           DockerImageName.parse(POSTGRES_IMAGE).asCompatibleSubstituteFor("postgres"));
+
+  @Container
+  @ServiceConnection(name = "redis")
+  static final GenericContainer<?> redis =
+      new GenericContainer<>(DockerImageName.parse("redis:8.12.0-alpine")).withExposedPorts(6379);
 
   @Autowired ApplicationContext context;
 
