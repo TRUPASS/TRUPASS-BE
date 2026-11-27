@@ -167,7 +167,7 @@ FE ── POST /auth/google {idToken} ──▶ core: Google 공개키로 서명
    user.profileCompleted = false → FE 회원 정보 입력(/signup)
 FE ── PUT /users/me/profile {nickname, birthYear, gender, interests, agreements} ──▶ 저장, profileCompleted = true
 FE ── Authorization: Bearer {accessToken} ──▶ 인증이 필요한 API
-FE ── POST /auth/refresh {refreshToken} ──▶ 새 토큰 쌍 (refresh token은 1회용, 재사용되면 그 사용자 것 전부 폐기)
+FE ── POST /auth/refresh {refreshToken} ──▶ 새 토큰 쌍 (refresh token은 1회용, 재사용되거나 동시에 쓰이면 그 사용자 것 전부 폐기)
 FE ── POST /auth/logout {refreshToken} ──▶ refresh token 폐기 + 그 사용자의 access token 폐기
 ```
 
@@ -188,6 +188,18 @@ JWT는 서명·만료·발급자만 보므로, refresh token을 폐기해도 이
 - Redis를 재시작하면 메모리가 비어 이미 폐기한 토큰이 다시 통과한다. 운영은 AOF(`--appendonly yes`, `redis-data` 볼륨)로 되살린다. 로컬은 저장하지 않는다.
 - 검증 순서는 만료 → 발급자 → 폐기이고 `failOnError(true)`로 앞에서 실패하면 멈춘다. 기본값(`false`)은 끝까지 돌아서 만료된 토큰도 Redis를 읽는다.
 - 구현: `global/security`의 `AccessTokenRevocationStore`(읽기·쓰기), `RevokedBeforeValidator`(JWT 검증 체인의 마지막).
+
+#### refresh token 동시 재발급
+
+같은 refresh token으로 `POST /auth/refresh`가 동시에 와도 한 건만 성공한다(#17).
+
+- `consume`은 토큰 행을 `SELECT ... FOR UPDATE`(`findByTokenHashForUpdate`)로 읽는다. 뒤에 온 요청은 앞 요청이 커밋할 때까지 기다렸다가 "폐기됨"을 읽고 재사용 감지 분기로 간다.
+- 동시에 온 두 번째 요청도 재사용(탈취)으로 본다. 그 사용자의 refresh token을 모두 폐기하고 기준 시각을 남기므로, 앞 요청이 받은 새 토큰 쌍까지 막힌다. 결제를 다루는 서비스라 탈취를 놓치는 쪽보다 정상 사용자가 다시 로그인하는 쪽을 골랐다. FE는 재발급을 한 번에 하나씩 보내므로 정상 사용자가 겪을 일은 드물다.
+- 그래서 재발급(소비 → access token 생성 → refresh token 저장)은 `AuthService.refresh`의 한 트랜잭션이다. 새 refresh token이 따로 커밋되면 뒤 요청의 일괄 폐기를 피해 살아남는다. 외부 호출이 없어 규칙 6과 부딪히지 않는다. 로그인은 Google 검증 때문에 여전히 트랜잭션을 열지 않는다.
+- 기준 시각(`now`)은 락을 잡은 뒤에 읽는다. 앞 요청의 access token은 커밋 전에 만들어지므로 그 발급 시각은 늘 기준 시각 이하가 된다.
+- 기다리는 요청은 그동안 DB 커넥션을 쥐고 있다(Hikari 기본 10개). 재발급 트랜잭션은 수 ms라 지금은 문제 되지 않는다. 락 대기 시간 제한은 두지 않았다.
+- 로그아웃(`revoke`)은 아직 락을 쓰지 않는다. 재발급과 로그아웃이 같은 refresh token으로 동시에 오면 재발급이 받은 새 refresh token이 남을 수 있다(후속 과제).
+- 테스트: `RefreshTokenConcurrencyTest`(스레드 10개 동시 출발, 소비와 발급 사이를 일부러 늦춘 경우 포함).
 
 ### 회원 정보 입력 (가입 2단계)
 
