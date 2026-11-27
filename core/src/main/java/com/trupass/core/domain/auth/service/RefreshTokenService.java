@@ -74,14 +74,20 @@ public class RefreshTokenService {
    *
    * <p>이미 폐기된 토큰이 다시 오면 탈취로 보고 그 사용자의 refresh token을 모두 폐기하고 access token도 막는다. 예외를 던지지만 {@code
    * noRollbackFor}라서 폐기는 커밋되고, access token 폐기 기록은 그 커밋 뒤에 남는다.
+   *
+   * <p>같은 토큰이 동시에 와도 행 락({@code SELECT ... FOR UPDATE})으로 한 줄로 세운다(#17). 뒤에 온 요청은 앞 요청이 커밋할 때까지
+   * 기다렸다가 "폐기됨"을 읽고 위의 재사용 분기로 간다.
+   *
+   * <p>{@code now}는 락을 잡은 뒤에 읽는다. 뒤에 온 요청의 기준 시각이 앞 요청이 커밋 전에 만든 access token의 발급 시각보다 앞서지 않게 하기
+   * 위해서다.
    */
   @Transactional(noRollbackFor = GeneralException.class)
   public Long consume(String rawToken) {
-    Instant now = clock.instant();
     RefreshToken token =
         refreshTokenRepository
-            .findByTokenHash(hash(rawToken))
+            .findByTokenHashForUpdate(hash(rawToken))
             .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+    Instant now = clock.instant();
     if (token.isRevoked()) {
       refreshTokenRepository.revokeAllByUserId(token.getUserId(), now);
       events.publishEvent(new AccessTokenRevokedEvent(token.getUserId(), now));
