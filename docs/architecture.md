@@ -52,6 +52,7 @@ FE(Vercel / localhost:5173) ──▶ core:8080 ──▶ mock-merchant:9001 (�
 | Spring Boot | 4.1.2 | Web MVC, Validation, Actuator, Data JPA, Flyway |
 | Gradle | 9.9.0 | Wrapper(`./gradlew`)로 실행 |
 | PostgreSQL | 18 (`pgvector/pgvector:0.8.7-pg18`) | 로컬 compose와 테스트가 같은 이미지를 쓴다 |
+| Redis | 8.12.0 (`redis:8.12.0-alpine`) | access token 폐기 기준 시각만 둔다. 운영은 AOF로 재시작에도 남긴다 |
 | springdoc-openapi | 3.2.0 | Swagger UI, FE 타입 생성용 OpenAPI |
 | 테스트 | JUnit 5, Testcontainers, ArchUnit 1.5.1 |  |
 | 포맷 | Spotless 8.11.0 + google-java-format 2.0.0 | 2칸 들여쓰기, 100자 |
@@ -167,13 +168,26 @@ FE ── POST /auth/google {idToken} ──▶ core: Google 공개키로 서명
 FE ── PUT /users/me/profile {nickname, birthYear, gender, interests, agreements} ──▶ 저장, profileCompleted = true
 FE ── Authorization: Bearer {accessToken} ──▶ 인증이 필요한 API
 FE ── POST /auth/refresh {refreshToken} ──▶ 새 토큰 쌍 (refresh token은 1회용, 재사용되면 그 사용자 것 전부 폐기)
-FE ── POST /auth/logout {refreshToken} ──▶ refresh token 폐기
+FE ── POST /auth/logout {refreshToken} ──▶ refresh token 폐기 + 그 사용자의 access token 폐기
 ```
 
 - 열린 경로: `/auth/**`, `/internal/**`(agent 전용, 운영은 Caddy가 차단), `/webhooks/**`, health, Swagger. 나머지는 모두 로그인이 필요하다.
 - controller에서 로그인 사용자는 `@LoginUserId Long userId`로 받는다. OpenAPI 스펙에는 나오지 않는다(`SwaggerConfig`).
-- 토큰이 없으면 `COMMON401`, 틀리거나 만료되면 `COMMON401_1`.
+- 토큰이 없으면 `COMMON401`, 틀리거나 만료되거나 폐기됐으면 `COMMON401_1`.
 - 설정: `GOOGLE_OAUTH_CLIENT_IDS`(Google OAuth 클라이언트 ID), `TRUPASS_JWT_SECRET`(32바이트 이상, prod 필수), 운영은 `TRUPASS_CORS_ALLOWED_ORIGINS`(FE 주소).
+
+#### access token 폐기 (Redis)
+
+JWT는 서명·만료·발급자만 보므로, refresh token을 폐기해도 이미 발급한 access token은 만료(30분)까지 통과한다. 이를 막으려고 Redis에 사용자별 **기준 시각**을 둔다.
+
+- 키 `auth:revoked-before:{userId}`, 값은 epoch 초, TTL은 access token 수명(30분). 이 시각 이하에 발급된(`iat <= 기준 시각`) access token은 `COMMON401_1`.
+- 기록하는 때: 로그아웃(`RefreshTokenService.revoke`), refresh token 재사용 감지(`consume`), 회원 탈퇴(`onUserWithdrawn`). 사용자 단위라 로그아웃하면 다른 기기의 access token도 막히고, 그 기기는 자기 refresh token으로 재발급한다.
+- 같은 초에 발급된 토큰도 거부한다(`<=`). `iat`가 초 단위라 폐기 전후를 가릴 수 없어서, 탈취자 토큰이 살아남는 쪽보다 정상 토큰이 401을 한 번 받고 재발급하는 쪽을 골랐다.
+- 커밋 뒤에 쓴다(`AccessTokenRevokedEvent` → `@TransactionalEventListener(AFTER_COMMIT)`). 트랜잭션 안에서 쓰면 Redis 예외로 refresh token 폐기까지 롤백된다.
+- Redis 장애 때는 통과시킨다(fail-open, WARN 로그). 도입 전과 같은 상태로 돌아갈 뿐 서비스는 멈추지 않는다. 그래서 타임아웃은 200ms로 짧게 두고, health에서 Redis는 뺐다(`management.health.redis.enabled: false`).
+- Redis를 재시작하면 메모리가 비어 이미 폐기한 토큰이 다시 통과한다. 운영은 AOF(`--appendonly yes`, `redis-data` 볼륨)로 되살린다. 로컬은 저장하지 않는다.
+- 검증 순서는 만료 → 발급자 → 폐기이고 `failOnError(true)`로 앞에서 실패하면 멈춘다. 기본값(`false`)은 끝까지 돌아서 만료된 토큰도 Redis를 읽는다.
+- 구현: `global/security`의 `AccessTokenRevocationStore`(읽기·쓰기), `RevokedBeforeValidator`(JWT 검증 체인의 마지막).
 
 ### 회원 정보 입력 (가입 2단계)
 
@@ -204,7 +218,7 @@ Google 로그인 때 계정이 먼저 생기고(`newUser = true`), FE 회원 정
 - 행은 지우지 않는다(주문·서명 기록이 가리킬 수 있다). 개인정보(이메일·이름·사진·닉네임·출생 연도·성별·관심사)를 지우고 `withdrawn_at`을 채운다. 약관 동의는 모두 거둔 것으로 이력에 남긴다.
 - `google_sub`를 `withdrawn:{id}`로 바꿔 Google 계정과의 연결을 끊는다. 같은 Google 계정으로 다시 로그인하면 새 회원으로 가입된다.
 - `UserWithdrawnEvent`를 같은 트랜잭션에서 발행하고, auth(`RefreshTokenService`)가 받아 그 회원의 refresh token을 모두 폐기한다.
-- 이미 발급한 access token은 만료(30분)까지 남지만, 탈퇴한 회원으로 오는 요청은 `USER401_1`(401)로 거절한다. FE는 401을 받으면 재발급을 시도하고, refresh token이 폐기돼 있어 로그아웃된다.
+- 이미 발급한 access token은 인증 단계에서 `COMMON401_1`로 막힌다(위 "access token 폐기"). Redis 장애로 그 기록이 없을 때도 탈퇴한 회원으로 오는 요청은 서비스에서 `USER401_1`로 거절한다. FE는 401을 받으면 재발급을 시도하고, refresh token이 폐기돼 있어 로그아웃된다.
 - FE에는 아직 탈퇴 화면이 없다.
 
 ### 추천용 회원 성향
