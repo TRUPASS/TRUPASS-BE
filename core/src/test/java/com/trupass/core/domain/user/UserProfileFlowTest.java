@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -50,6 +51,11 @@ class UserProfileFlowTest {
       new PostgreSQLContainer(
           DockerImageName.parse("pgvector/pgvector:0.8.7-pg18")
               .asCompatibleSubstituteFor("postgres"));
+
+  @Container
+  @ServiceConnection(name = "redis")
+  static final GenericContainer<?> redis =
+      new GenericContainer<>(DockerImageName.parse("redis:8.12.0-alpine")).withExposedPorts(6379);
 
   /** FE 회원 정보 입력 화면에서 보내는 값 (닉네임 앞뒤 공백은 서버가 지운다) */
   private static final String SIGNUP =

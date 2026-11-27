@@ -2,6 +2,7 @@ package com.trupass.core.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 import com.trupass.core.global.config.TrupassProperties;
 import java.time.Clock;
@@ -40,6 +41,7 @@ class JwtTokenProviderTest {
       new ApplicationContextRunner()
           .withUserConfiguration(PropertiesConfig.class)
           .withBean(Clock.class, Clock::systemUTC)
+          .withBean(AccessTokenRevocationStore.class, () -> mock(AccessTokenRevocationStore.class))
           .withBean(JwtTokenProvider.class);
 
   @Test
@@ -68,7 +70,8 @@ class JwtTokenProviderTest {
                     null,
                     null,
                     new TrupassProperties.Auth(null, jwt("short", null))),
-                Clock.systemUTC()))
+                Clock.systemUTC(),
+                mock(AccessTokenRevocationStore.class)))
         .isInstanceOf(IllegalStateException.class);
   }
 }

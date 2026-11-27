@@ -9,6 +9,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Component;
 /**
  * Trupass access token(JWT, HS256) 발급·검증. {@code sub}가 사용자 ID다.
  *
+ * <p>검증은 서명·만료·발급자에 더해, 로그아웃 등으로 폐기된 토큰인지를 Redis 기준 시각으로 확인한다({@link RevokedBeforeValidator}).
+ *
  * <p>서명 키는 {@code trupass.auth.jwt.secret}(환경 변수 {@code TRUPASS_JWT_SECRET})이고 32바이트 이상이어야 한다.
  */
 @Component
@@ -33,7 +36,8 @@ public class JwtTokenProvider {
   private final TrupassProperties.Jwt jwtProperties;
   private final Clock clock;
 
-  public JwtTokenProvider(TrupassProperties properties, Clock clock) {
+  public JwtTokenProvider(
+      TrupassProperties properties, Clock clock, AccessTokenRevocationStore revocationStore) {
     this.jwtProperties = properties.auth().jwt();
     this.clock = clock;
     SecretKey key = secretKey(effectiveSecret(jwtProperties));
@@ -41,9 +45,15 @@ public class JwtTokenProvider {
     this.decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
     JwtTimestampValidator timestampValidator = new JwtTimestampValidator();
     timestampValidator.setClock(clock);
-    this.decoder.setJwtValidator(
+    // 만료 → 발급자 → 폐기 순. 기본값은 앞이 실패해도 끝까지 돌기 때문에 failOnError로 멈추게 해서,
+    // 만료됐거나 다른 발급자의 토큰이면 Redis까지 가지 않게 한다.
+    DelegatingOAuth2TokenValidator<Jwt> validator =
         new DelegatingOAuth2TokenValidator<>(
-            timestampValidator, new JwtIssuerValidator(jwtProperties.issuer())));
+            timestampValidator,
+            new JwtIssuerValidator(jwtProperties.issuer()),
+            new RevokedBeforeValidator(revocationStore));
+    validator.setFailOnError(true);
+    this.decoder.setJwtValidator(validator);
   }
 
   /** {@code TRUPASS_JWT_SECRET}이 비어 있으면 local 프로필의 개발용 키를 쓴다. prod에는 개발용 키가 없다. */
