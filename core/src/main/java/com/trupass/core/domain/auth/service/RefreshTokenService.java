@@ -76,7 +76,8 @@ public class RefreshTokenService {
    * noRollbackFor}라서 폐기는 커밋되고, access token 폐기 기록은 그 커밋 뒤에 남는다.
    *
    * <p>같은 토큰이 동시에 와도 행 락({@code SELECT ... FOR UPDATE})으로 한 줄로 세운다(#17). 뒤에 온 요청은 앞 요청이 커밋할 때까지
-   * 기다렸다가 "폐기됨"을 읽고 위의 재사용 분기로 간다.
+   * 기다렸다가 "폐기됨"을 읽고 위의 재사용 분기로 간다. 이 분기가 앞 요청이 방금 발급한 새 refresh token까지 폐기하려면 발급이 같은 트랜잭션 안에 있어야
+   * 하므로 {@link AuthService#refresh}가 트랜잭션을 열고 이 메서드는 거기에 참여한다.
    *
    * <p>{@code now}는 락을 잡은 뒤에 읽는다. 뒤에 온 요청의 기준 시각이 앞 요청이 커밋 전에 만든 access token의 발급 시각보다 앞서지 않게 하기
    * 위해서다.
