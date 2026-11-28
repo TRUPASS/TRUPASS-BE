@@ -69,7 +69,8 @@ class JwtTokenProviderTest {
                     null,
                     null,
                     null,
-                    new TrupassProperties.Auth(null, jwt("short", null))),
+                    new TrupassProperties.Auth(null, jwt("short", null)),
+                    null),
                 Clock.systemUTC(),
                 mock(AccessTokenRevocationStore.class)))
         .isInstanceOf(IllegalStateException.class);

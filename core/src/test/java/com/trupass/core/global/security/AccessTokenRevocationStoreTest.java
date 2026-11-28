@@ -38,7 +38,8 @@ class AccessTokenRevocationStoreTest {
             new TrupassProperties.Auth(
                 null,
                 new TrupassProperties.Jwt(
-                    null, null, "trupass", Duration.ofMinutes(30), Duration.ofDays(14))));
+                    null, null, "trupass", Duration.ofMinutes(30), Duration.ofDays(14))),
+            null);
     store = new AccessTokenRevocationStore(redis, properties);
   }
 

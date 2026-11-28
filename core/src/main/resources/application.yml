@@ -62,9 +62,24 @@ trupass:
     merchant: mock # mock | duffel
     payment: mock # mock | toss
     audit: localfile # localfile | s3
+    flight-search: duffel # duffel
+    stay-search: liteapi # liteapi
   services:
     mock-merchant-base-url: ${MOCK_MERCHANT_BASE_URL:http://localhost:9001}
     agent-base-url: ${AGENT_BASE_URL:http://localhost:8001}
+    # agent의 INTERNAL_API_KEY와 같은 값. 비어 있으면 agent가 503/401로 거절한다.
+    agent-internal-api-key: ${INTERNAL_API_KEY:}
+    agent-read-timeout: 30s
+  # 항공·숙소 검색 (domain/search). 테스트·샌드박스 키만 받는다.
+  search:
+    read-timeout: 20s
+    duffel:
+      access-token: ${DUFFEL_ACCESS_TOKEN:}
+    liteapi:
+      api-key: ${LITEAPI_SANDBOX_KEY:}
+    # 통화 1단위당 원. MVP는 고정 환율(erd-changes.md 6절). Duffel 테스트 계정은 USD로 준다.
+    krw-rates:
+      USD: 1400
   http:
     connect-timeout: 2s
     read-timeout: 5s

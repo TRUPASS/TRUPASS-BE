@@ -1,0 +1,165 @@
+{
+ "data": [
+  {
+   "hotelId": "lp65560402",
+   "roomTypes": [
+    {
+     "offerId": "AwJ2MQAAAABrC90IVdZCYCajkASMTlBvd01c5D0s…",
+     "offerRetailRate": {
+      "amount": 388805,
+      "currency": "KRW"
+     },
+     "rates": [
+      {
+       "name": "Deluxe Double",
+       "boardType": "RO",
+       "boardName": "Room Only",
+       "cancellationPolicies": {
+        "refundableTag": "NRFN"
+       },
+       "retailRate": {
+        "taxesAndFees": [
+         {
+          "included": true
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "hotelId": "lp65579fc2",
+   "roomTypes": [
+    {
+     "offerId": "AwJ2MQAAAABrC90IkXBOmZHiplK2t0ZiD-ivlwJu…",
+     "offerRetailRate": {
+      "amount": 153477,
+      "currency": "KRW"
+     },
+     "rates": [
+      {
+       "name": "Double Room - Non-Smoking",
+       "boardType": "RO",
+       "boardName": "Room Only",
+       "cancellationPolicies": {
+        "refundableTag": "RFN"
+       },
+       "retailRate": {
+        "taxesAndFees": [
+         {
+          "included": true
+         },
+         {
+          "included": true
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "hotelId": "lp1ffdc",
+   "roomTypes": [
+    {
+     "offerId": "AwJ2MQAAAABrC90I_7Aw3ZbkOIKPQCeVdZ6LwnP5…",
+     "offerRetailRate": {
+      "amount": 651255,
+      "currency": "KRW"
+     },
+     "rates": [
+      {
+       "name": "Swiss Advantage Room Queen",
+       "boardType": "RO",
+       "boardName": "Room Only",
+       "cancellationPolicies": {
+        "refundableTag": "NRFN"
+       },
+       "retailRate": {
+        "taxesAndFees": [
+         {
+          "included": true
+         },
+         {
+          "included": true
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "hotelId": "lp_missing",
+   "roomTypes": [
+    {
+     "offerId": "AwJ2MQAAAABrC90IVdZCYCajkASMTlBvd01c5D0s…",
+     "offerRetailRate": {
+      "amount": 388805,
+      "currency": "KRW"
+     },
+     "rates": [
+      {
+       "name": "Deluxe Double",
+       "boardType": "RO",
+       "boardName": "Room Only",
+       "cancellationPolicies": {
+        "refundableTag": "NRFN"
+       },
+       "retailRate": {
+        "taxesAndFees": [
+         {
+          "included": true
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "hotels": [
+  {
+   "id": "lp65579fc2",
+   "name": "Hotel Keihan Tenmabashi Ekimae",
+   "address": "Chuo-ku Tenmabashikyomatchi 2-13",
+   "country_code": "JP",
+   "city_name": "Osaka",
+   "latitude": 34.689642,
+   "longitude": 135.516271,
+   "rating": 8.7,
+   "stars": 4,
+   "review_count": 3340
+  },
+  {
+   "id": "lp65560402",
+   "name": "Citadines Namba Osaka",
+   "address": "Naniwa-ku Nippombashi 3-5-25",
+   "country_code": "JP",
+   "city_name": "Osaka",
+   "latitude": 34.662297,
+   "longitude": 135.506099,
+   "rating": 9.2,
+   "stars": 4,
+   "review_count": 5037
+  },
+  {
+   "id": "lp1ffdc",
+   "name": "Swissotel Nankai Osaka",
+   "address": "Chuo-ku Namba 5-1-60",
+   "country_code": "JP",
+   "city_name": "Osaka",
+   "latitude": 34.663916,
+   "longitude": 135.50146,
+   "rating": 8.6,
+   "stars": 5,
+   "review_count": 3505
+  }
+ ],
+ "sandbox": true
+}

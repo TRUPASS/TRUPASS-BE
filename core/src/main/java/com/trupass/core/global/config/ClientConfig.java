@@ -11,6 +11,10 @@ import com.trupass.core.domain.merchant.client.mock.MockMerchantClient;
 import com.trupass.core.domain.payment.client.PaymentClient;
 import com.trupass.core.domain.payment.client.mock.MockPgClient;
 import com.trupass.core.domain.payment.client.toss.TossPaymentClient;
+import com.trupass.core.domain.search.client.FlightSearchClient;
+import com.trupass.core.domain.search.client.StaySearchClient;
+import com.trupass.core.domain.search.client.duffel.DuffelFlightSearchClient;
+import com.trupass.core.domain.search.client.liteapi.LiteApiStaySearchClient;
 import com.trupass.core.domain.trip.client.AgentClient;
 import com.trupass.core.domain.trip.client.http.HttpAgentClient;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +28,11 @@ import org.springframework.web.client.RestClient;
  *   <li>{@code trupass.clients.merchant} = mock | duffel
  *   <li>{@code trupass.clients.payment} = mock | toss
  *   <li>{@code trupass.clients.audit} = localfile | s3
+ *   <li>{@code trupass.clients.flight-search} = duffel
+ *   <li>{@code trupass.clients.stay-search} = liteapi
  * </ul>
+ *
+ * <p>검색과 agent는 응답이 느려서(Duffel 최대 20초, Gemini 수 초) 공통 read-timeout(5초) 대신 각자 타임아웃을 쓴다.
  */
 @Configuration(proxyBeanMethods = false)
 public class ClientConfig {
@@ -61,8 +69,51 @@ public class ClientConfig {
 
   @Bean
   AgentClient agentClient(TrupassProperties properties, RestClient.Builder restClientBuilder) {
+    var services = properties.services();
     return new HttpAgentClient(
-        restClientBuilder.clone().baseUrl(properties.services().agentBaseUrl()).build());
+        restClientBuilder
+            .clone()
+            .baseUrl(services.agentBaseUrl())
+            .requestFactory(
+                RestClientConfig.requestFactory(
+                    properties.http().connectTimeout(), services.agentReadTimeout()))
+            .build(),
+        services.agentInternalApiKey());
+  }
+
+  @Bean
+  FlightSearchClient flightSearchClient(
+      TrupassProperties properties, RestClient.Builder restClientBuilder) {
+    var search = properties.search();
+    return switch (properties.clients().flightSearch()) {
+      case DUFFEL ->
+          new DuffelFlightSearchClient(
+              searchRestClient(restClientBuilder, properties, search.duffel().baseUrl()),
+              search.duffel().accessToken());
+    };
+  }
+
+  @Bean
+  StaySearchClient staySearchClient(
+      TrupassProperties properties, RestClient.Builder restClientBuilder) {
+    var search = properties.search();
+    return switch (properties.clients().staySearch()) {
+      case LITEAPI ->
+          new LiteApiStaySearchClient(
+              searchRestClient(restClientBuilder, properties, search.liteapi().baseUrl()),
+              search.liteapi().apiKey());
+    };
+  }
+
+  private static RestClient searchRestClient(
+      RestClient.Builder builder, TrupassProperties properties, String baseUrl) {
+    return builder
+        .clone()
+        .baseUrl(baseUrl)
+        .requestFactory(
+            RestClientConfig.requestFactory(
+                properties.http().connectTimeout(), properties.search().readTimeout()))
+        .build();
   }
 
   @Bean

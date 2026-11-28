@@ -1,5 +1,8 @@
 package com.trupass.core.global.common;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Currency;
 import java.util.Objects;
 
 /**
@@ -22,6 +25,31 @@ public record Money(long amount, String currency) {
 
   public static Money krw(long amount) {
     return new Money(amount, KRW);
+  }
+
+  /**
+   * 외부 API가 주는 "보통 단위" 소수 금액(USD {@code 401.40})을 최소 단위 정수({@code 40140})로 바꾼다. 통화가 허용하는 자릿수보다 소수가
+   * 길면 반올림하지 않고 {@link ArithmeticException}을 던진다. 금액을 몰래 바꾸지 않기 위해서다.
+   */
+  public static Money fromDecimal(BigDecimal amount, String currency) {
+    Objects.requireNonNull(amount, "amount");
+    int digits = fractionDigits(currency);
+    long minor =
+        amount.setScale(digits, RoundingMode.UNNECESSARY).movePointRight(digits).longValueExact();
+    return new Money(minor, currency);
+  }
+
+  /** 최소 단위 정수를 보통 단위 소수로 돌려준다. USD {@code 40140} → {@code 401.40}. */
+  public BigDecimal toDecimal() {
+    return BigDecimal.valueOf(amount, fractionDigits(currency));
+  }
+
+  private static int fractionDigits(String currency) {
+    int digits = Currency.getInstance(currency).getDefaultFractionDigits();
+    if (digits < 0) {
+      throw new IllegalArgumentException("currency has no minor unit: " + currency);
+    }
+    return digits;
   }
 
   public Money plus(Money other) {

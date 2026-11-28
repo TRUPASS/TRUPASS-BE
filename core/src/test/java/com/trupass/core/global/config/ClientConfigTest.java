@@ -11,6 +11,12 @@ import com.trupass.core.domain.merchant.client.mock.MockMerchantClient;
 import com.trupass.core.domain.payment.client.PaymentClient;
 import com.trupass.core.domain.payment.client.mock.MockPgClient;
 import com.trupass.core.domain.payment.client.toss.TossPaymentClient;
+import com.trupass.core.domain.search.client.FlightSearchClient;
+import com.trupass.core.domain.search.client.StaySearchClient;
+import com.trupass.core.domain.search.client.duffel.DuffelFlightSearchClient;
+import com.trupass.core.domain.search.client.liteapi.LiteApiStaySearchClient;
+import com.trupass.core.domain.trip.client.AgentClient;
+import com.trupass.core.domain.trip.client.http.HttpAgentClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -34,6 +40,12 @@ class ClientConfigTest {
       assertThat(context.getBean(MerchantClient.class)).isInstanceOf(MockMerchantClient.class);
       assertThat(context.getBean(PaymentClient.class)).isInstanceOf(MockPgClient.class);
       assertThat(context.getBean(AuditClient.class)).isInstanceOf(LocalFileAuditClient.class);
+      // 검색은 아직 구현체가 하나씩이고, 키가 비어 있어도 뜬다(부를 때 SEARCH_NOT_CONFIGURED).
+      assertThat(context.getBean(FlightSearchClient.class))
+          .isInstanceOf(DuffelFlightSearchClient.class);
+      assertThat(context.getBean(StaySearchClient.class))
+          .isInstanceOf(LiteApiStaySearchClient.class);
+      assertThat(context.getBean(AgentClient.class)).isInstanceOf(HttpAgentClient.class);
     });
   }
 
@@ -56,6 +68,16 @@ class ClientConfigTest {
   void 오타가_있으면_애플리케이션이_뜨지_않는다() {
     runner
         .withPropertyValues("trupass.clients.payment=tosss")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void 검색에_운영_키를_넣으면_애플리케이션이_뜨지_않는다() {
+    runner
+        .withPropertyValues("trupass.search.duffel.access-token=duffel_live_x")
+        .run(context -> assertThat(context).hasFailed());
+    runner
+        .withPropertyValues("trupass.search.liteapi.api-key=prod_x")
         .run(context -> assertThat(context).hasFailed());
   }
 }
