@@ -3,9 +3,12 @@ from uuid import UUID
 import httpx
 from google.genai.errors import APIError
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from pydantic import ValidationError
 from app.core.config import get_settings
 from app.domain.models import PromptUpdate, SavedPrompts, PlanResponse, RepriceRequest, MoneyBreakdown, TripInput, TripRequirements
+from app.domain.recommend import RecommendRequest, RecommendResponse
 from app.services.budget import BudgetCalculator
+from app.services.recommender import InvalidRecommendation
 
 router = APIRouter(prefix='/api/v1')
 
@@ -80,6 +83,19 @@ def plan_trip(update: PromptUpdate, request: Request) -> PlanResponse:
     conditions, called, inputs, outputs = _analyze(request, saved.prompts, saved.prompt_id)
     return PlanResponse(prompt_id=saved.prompt_id, requirements=conditions, gemini_called=called,
                         prompt_tokens=inputs, output_tokens=outputs)
+
+
+@router.post('/trips/recommend', response_model=RecommendResponse, response_model_exclude_none=True,
+             dependencies=[Depends(require_internal_key)], summary='core가 고른 항공·숙소 후보로 추천 조합 만들기')
+def recommend_trip(body: RecommendRequest, request: Request) -> RecommendResponse:
+    try:
+        recommendation, called, inputs, outputs = request.app.state.recommender.recommend(body)
+    except (InvalidRecommendation, ValidationError):
+        raise HTTPException(502, detail='AI가 후보에 없는 조합이나 올바르지 않은 형식을 돌려줬습니다.') from None
+    except (APIError, httpx.RequestError, RuntimeError, ValueError):
+        raise HTTPException(503, detail='조합 추천에 실패했습니다. 다시 시도해 주세요.') from None
+    return RecommendResponse(**recommendation.model_dump(), gemini_called=called,
+                             prompt_tokens=inputs, output_tokens=outputs)
 
 
 @router.post('/trips/reprice', response_model=MoneyBreakdown, dependencies=[Depends(require_internal_key)])
