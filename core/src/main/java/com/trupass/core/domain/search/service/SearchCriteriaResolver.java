@@ -9,7 +9,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -108,7 +110,9 @@ public class SearchCriteriaResolver {
           from = LocalTime.of(18, 0);
           to = LocalTime.of(23, 59);
         }
-        default -> assumptions.add("출발 시간대 '" + period + "'를 알 수 없어 시간 제한 없이 검색했습니다.");
+        default ->
+            assumptions.add(
+                "출발 시간대 '" + period + "'" + objectParticle(period) + " 알 수 없어 시간 제한 없이 검색했습니다.");
       }
     }
 
@@ -144,15 +148,17 @@ public class SearchCriteriaResolver {
   }
 
   private City resolveOrigin(String origin, String originHint, List<String> assumptions) {
+    // AI가 originHint를 그대로 출발지로 돌려주는 경우가 많다. 같은 글자는 한 번만 찾고 한 번만 알린다.
+    Set<String> tried = new HashSet<>();
     for (String text : new String[] {origin, originHint}) {
-      if (text == null || text.isBlank()) {
+      if (text == null || text.isBlank() || !tried.add(text.strip())) {
         continue;
       }
       var city = cities.find(text);
       if (city.isPresent()) {
         return city.get();
       }
-      assumptions.add("출발지 '" + text + "'를 찾지 못했습니다.");
+      assumptions.add("출발지 '" + text + "'" + objectParticle(text) + " 찾지 못했습니다.");
     }
     City fallback = cities.byCode(DEFAULT_ORIGIN).orElseThrow();
     if (origin == null || origin.isBlank()) {
@@ -161,6 +167,19 @@ public class SearchCriteriaResolver {
       assumptions.add("출발지를 " + fallback.nameKo() + "(" + fallback.code() + ")로 바꿔 검색했습니다.");
     }
     return fallback;
+  }
+
+  /** 목적격 조사. 마지막 글자에 받침이 있으면 '을', 없으면 '를', 한글로 끝나지 않으면 '을(를)'. */
+  static String objectParticle(String word) {
+    String text = word == null ? "" : word.strip();
+    if (text.isEmpty()) {
+      return "을(를)";
+    }
+    char last = text.charAt(text.length() - 1);
+    if (last < '가' || last > '힣') {
+      return "을(를)";
+    }
+    return (last - '가') % 28 == 0 ? "를" : "을";
   }
 
   private static List<String> nullToEmpty(List<String> values) {

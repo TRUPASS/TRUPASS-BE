@@ -115,7 +115,7 @@ class SearchCriteriaResolverTest {
 
     assertThat(criteria.departurePeriod()).isNull();
     assertThat(criteria.departureTimeFrom()).isNull();
-    assertThat(criteria.assumptions()).containsExactly("출발 시간대 'dawn'를 알 수 없어 시간 제한 없이 검색했습니다.");
+    assertThat(criteria.assumptions()).containsExactly("출발 시간대 'dawn'을(를) 알 수 없어 시간 제한 없이 검색했습니다.");
   }
 
   @Test
@@ -162,7 +162,27 @@ class SearchCriteriaResolverTest {
 
     assertThat(criteria.origin().code()).isEqualTo("SEL");
     assertThat(criteria.assumptions())
-        .containsExactly("출발지 '화성'를 찾지 못했습니다.", "출발지를 서울(SEL)로 바꿔 검색했습니다.");
+        .containsExactly("출발지 '화성'을 찾지 못했습니다.", "출발지를 서울(SEL)로 바꿔 검색했습니다.");
+  }
+
+  @Test
+  void AI가_출발_도시를_그대로_돌려줘도_못_찾았다는_안내는_한_번만_한다() {
+    Req req = new Req();
+    req.origin = "뉴욕";
+
+    SearchCriteria criteria = resolver.resolve(req.build(), " 뉴욕 ", TODAY);
+
+    assertThat(criteria.origin().code()).isEqualTo("SEL");
+    assertThat(criteria.assumptions())
+        .containsExactly("출발지 '뉴욕'을 찾지 못했습니다.", "출발지를 서울(SEL)로 바꿔 검색했습니다.");
+  }
+
+  @Test
+  void 조사는_받침에_맞춘다() {
+    assertThat(SearchCriteriaResolver.objectParticle("화성")).isEqualTo("을");
+    assertThat(SearchCriteriaResolver.objectParticle("파리")).isEqualTo("를");
+    assertThat(SearchCriteriaResolver.objectParticle("dawn")).isEqualTo("을(를)");
+    assertThat(SearchCriteriaResolver.objectParticle(" ")).isEqualTo("을(를)");
   }
 
   @Test
