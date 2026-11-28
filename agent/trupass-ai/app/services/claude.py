@@ -4,7 +4,11 @@ Gemini 구현과 같은 캐시·검증 흐름을 그대로 쓰고, 모델을 부
 anthropic 패키지는 이 공급자를 쓸 때만 필요하므로 import를 함수 안에서 한다.
 """
 
+import functools
+import logging
 from typing import Any
+
+from pydantic import BaseModel, create_model
 
 from app.core.cache import TTLCache
 from app.domain.models import TripRequirements
@@ -18,6 +22,29 @@ from app.services.recommender import GeminiRecommender
 # Haiku 5.5는 서버 쪽 폴백이 없어서 빼야 요청이 거절되지 않는다.
 _SERVER_FALLBACK_MODELS = ('claude-opus-5-5', 'claude-sonnet-5-5')
 _SERVER_FALLBACK_BETA = 'server-side-fallback-2026-07-01'
+
+logger = logging.getLogger(__name__)
+
+
+@functools.cache
+def _output_model(model: type[BaseModel]) -> type[BaseModel]:
+    """구조화 출력으로 보낼 모델. 선택 필드가 있으면 모든 필드를 필수(값이 없으면 null)로 바꾼 사본을 만든다.
+
+    선택 필드가 많으면 Claude API가 'Schema is too complex'(400)로 거절한다. TripRequirements는 14개가 모두 선택이다.
+    필수 + null 허용이면 받는 내용은 같고 문법은 단순해진다. 범위 같은 제약은 원래 모델로 다시 검증한다.
+    """
+    if all(field.is_required() for field in model.model_fields.values()):
+        return model
+    fields: dict[str, Any] = {name: (field.annotation, ...) for name, field in model.model_fields.items()}
+    return create_model(f'{model.__name__}Output', **fields)
+
+
+def _api_error_detail(exc: Exception) -> str:
+    body = getattr(exc, 'body', None)
+    error = body.get('error') if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        return f"{error.get('type')}: {str(error.get('message'))[:200]}"
+    return ''
 
 
 class ModelOutputError(RuntimeError):
@@ -50,12 +77,13 @@ class _ClaudeCaller:
     def _call(self, system: str, user_text: str, output_type: type, max_tokens: int) -> tuple[Any, int, int]:
         import anthropic
 
+        wire_type = _output_model(output_type)
         params: dict[str, Any] = {
             'model': self._model,
             'max_tokens': max_tokens,
             'system': system,
             'messages': [{'role': 'user', 'content': user_text}],
-            'output_format': output_type,
+            'output_format': wire_type,
         }
         if self._effort:
             params['output_config'] = {'effort': self._effort}
@@ -65,8 +93,10 @@ class _ClaudeCaller:
         try:
             response = self._get_client().beta.messages.parse(**params)
         except anthropic.APIError as exc:
-            # 라우트가 RuntimeError를 503으로 바꾼다. 메시지에는 오류 종류만 남긴다.
+            # 라우트가 RuntimeError를 503으로 바꾸면서 원인을 버리므로 여기서 남긴다. 키 값은 들어가지 않는다.
             status = getattr(exc, 'status_code', None)
+            logger.warning('Claude %s call failed: %s status=%s %s',
+                           self._model, type(exc).__name__, status, _api_error_detail(exc))
             raise RuntimeError(f'Claude call failed: {type(exc).__name__} status={status}') from exc
 
         if response.stop_reason == 'refusal':
@@ -76,6 +106,9 @@ class _ClaudeCaller:
         parsed = response.parsed_output
         if parsed is None:
             raise ModelOutputError('Claude returned no structured output')
+        if wire_type is not output_type:
+            # 범위를 벗어난 값이면 ValidationError(ValueError)가 나고, 폴백 체인은 다음 항목으로 넘어간다.
+            parsed = output_type.model_validate(parsed.model_dump())
         usage = response.usage
         return parsed, int(usage.input_tokens or 0), int(usage.output_tokens or 0)
 

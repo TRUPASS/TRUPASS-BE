@@ -175,7 +175,9 @@ def test_claude_analyzer_sends_structured_request_with_server_fallback():
     assert (requirements.destination, requirements.origin, called, inputs, outputs) == ('오사카', '서울', True, 120, 40)
     kwargs = parse.call_args.kwargs
     assert kwargs['model'] == 'claude-opus-5-5'
-    assert kwargs['output_format'] is TripRequirements
+    # 선택 필드가 많으면 API가 'Schema is too complex'로 거절해서, 모든 필드를 필수(null 허용)로 바꾼 사본을 보낸다.
+    sent = kwargs['output_format'].model_json_schema()
+    assert set(sent['required']) == set(TripRequirements.model_fields)
     assert kwargs['output_config'] == {'effort': 'low'}
     assert kwargs['fallbacks'] == 'default'
     assert kwargs['betas'] == ['server-side-fallback-2026-07-01']
@@ -183,6 +185,14 @@ def test_claude_analyzer_sends_structured_request_with_server_fallback():
     # 같은 입력은 캐시에서 돌려준다.
     assert analyzer.analyze(TripInput(prompt='오사카 2박', origin_hint='서울'))[1] is False
     assert parse.call_count == 1
+
+
+def test_claude_output_is_validated_against_original_model():
+    analyzer = ClaudeAnalyzer('fake-key', 'claude-opus-5-5', TTLCache(600, 8))
+    # 보낸 사본에는 범위 제약이 없어서 travelers=0도 올 수 있다. 원래 모델로 다시 검증해서 막는다.
+    analyzer._claude, _ = fake_client(claude_response(SimpleNamespace(model_dump=lambda: {'travelers': 0})))
+    with pytest.raises(ValueError):
+        analyzer.analyze(TripInput(prompt='도쿄'))
 
 
 def test_haiku_has_no_server_fallback():
