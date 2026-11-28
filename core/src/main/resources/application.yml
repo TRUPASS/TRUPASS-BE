@@ -65,6 +65,9 @@ trupass:
   services:
     mock-merchant-base-url: ${MOCK_MERCHANT_BASE_URL:http://localhost:9001}
     agent-base-url: ${AGENT_BASE_URL:http://localhost:8001}
+    # agent의 INTERNAL_API_KEY와 같은 값. 비어 있으면 agent가 503/401로 거절한다.
+    agent-internal-api-key: ${INTERNAL_API_KEY:}
+    agent-read-timeout: 30s
   http:
     connect-timeout: 2s
     read-timeout: 5s

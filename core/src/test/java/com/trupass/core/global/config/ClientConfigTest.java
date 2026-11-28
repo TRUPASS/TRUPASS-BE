@@ -11,6 +11,8 @@ import com.trupass.core.domain.merchant.client.mock.MockMerchantClient;
 import com.trupass.core.domain.payment.client.PaymentClient;
 import com.trupass.core.domain.payment.client.mock.MockPgClient;
 import com.trupass.core.domain.payment.client.toss.TossPaymentClient;
+import com.trupass.core.domain.trip.client.AgentClient;
+import com.trupass.core.domain.trip.client.http.HttpAgentClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -34,6 +36,7 @@ class ClientConfigTest {
       assertThat(context.getBean(MerchantClient.class)).isInstanceOf(MockMerchantClient.class);
       assertThat(context.getBean(PaymentClient.class)).isInstanceOf(MockPgClient.class);
       assertThat(context.getBean(AuditClient.class)).isInstanceOf(LocalFileAuditClient.class);
+      assertThat(context.getBean(AgentClient.class)).isInstanceOf(HttpAgentClient.class);
     });
   }
 

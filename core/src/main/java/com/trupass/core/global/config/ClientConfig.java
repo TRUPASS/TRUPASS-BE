@@ -61,8 +61,16 @@ public class ClientConfig {
 
   @Bean
   AgentClient agentClient(TrupassProperties properties, RestClient.Builder restClientBuilder) {
+    var services = properties.services();
     return new HttpAgentClient(
-        restClientBuilder.clone().baseUrl(properties.services().agentBaseUrl()).build());
+        restClientBuilder
+            .clone()
+            .baseUrl(services.agentBaseUrl())
+            .requestFactory(
+                RestClientConfig.requestFactory(
+                    properties.http().connectTimeout(), services.agentReadTimeout()))
+            .build(),
+        services.agentInternalApiKey());
   }
 
   @Bean

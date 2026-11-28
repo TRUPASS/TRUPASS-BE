@@ -40,9 +40,15 @@ public record TrupassProperties(
     S3
   }
 
+  /**
+   * 내부 서비스 주소. {@code agentInternalApiKey}는 agent가 {@code X-Internal-API-Key} 헤더로 확인하는 공유 키다(agent의
+   * {@code INTERNAL_API_KEY}와 같은 값). AI 호출은 공통 read-timeout(5초)보다 오래 걸려서 따로 둔다.
+   */
   public record Services(
       @DefaultValue("http://localhost:9001") String mockMerchantBaseUrl,
-      @DefaultValue("http://localhost:8001") String agentBaseUrl) {}
+      @DefaultValue("http://localhost:8001") String agentBaseUrl,
+      @DefaultValue("") String agentInternalApiKey,
+      @DefaultValue("30s") Duration agentReadTimeout) {}
 
   /** 외부 HTTP 호출 공통 타임아웃. */
   public record Http(
