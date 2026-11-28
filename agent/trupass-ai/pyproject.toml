@@ -3,6 +3,7 @@ name = "trupass-ai"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "anthropic>=2.14,<3",
     "fastapi>=0.115,<1",
     "google-genai>=1.0,<2",
     "httpx>=0.28,<1",

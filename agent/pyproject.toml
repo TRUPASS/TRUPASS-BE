@@ -14,6 +14,8 @@ dependencies = [
     "pydantic==2.12.5",
     "pydantic-settings==2.16.2",
     "httpx==0.28.1",
+    # LLM_PROVIDERS에 anthropic을 넣었을 때만 쓴다. 기본값(gemini)에서는 import하지 않는다.
+    "anthropic==2.14.0",
     "tzdata; sys_platform == 'win32'",
     # AP2 Python SDK. PyPI의 `ap2`는 제3자 미러이므로 공식 GitHub 저장소를 커밋으로 고정해 설치한다.
     "ap2",
