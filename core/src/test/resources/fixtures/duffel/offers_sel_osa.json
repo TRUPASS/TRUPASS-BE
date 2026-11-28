@@ -1,0 +1,419 @@
+{
+ "data": [
+  {
+   "id": "off_0355IWmAN8uOnPq92Axndl",
+   "total_amount": "401.40",
+   "total_currency": "USD",
+   "expires_at": "2026-11-28T08:16:13.231958Z",
+   "live_mode": false,
+   "owner": {
+    "iata_code": "NH",
+    "name": "ANA"
+   },
+   "slices": [
+    {
+     "duration": "PT7H25M",
+     "origin": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "destination": {
+      "iata_code": "ITM",
+      "name": "Osaka International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-20T07:45:00",
+       "arriving_at": "2026-12-20T09:45:00",
+       "duration": "PT2H",
+       "marketing_carrier_flight_number": "0862",
+       "marketing_carrier": {
+        "iata_code": "NH",
+        "name": "ANA"
+       },
+       "origin": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       },
+       "destination": {
+        "iata_code": "HND",
+        "name": "Haneda Airport"
+       }
+      },
+      {
+       "departing_at": "2026-12-20T14:00:00",
+       "arriving_at": "2026-12-20T15:10:00",
+       "duration": "PT1H10M",
+       "marketing_carrier_flight_number": "0027",
+       "marketing_carrier": {
+        "iata_code": "NH",
+        "name": "ANA"
+       },
+       "origin": {
+        "iata_code": "HND",
+        "name": "Haneda Airport"
+       },
+       "destination": {
+        "iata_code": "ITM",
+        "name": "Osaka International Airport"
+       }
+      }
+     ]
+    },
+    {
+     "duration": "PT10H35M",
+     "origin": {
+      "iata_code": "ITM",
+      "name": "Osaka International Airport"
+     },
+     "destination": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-22T08:00:00",
+       "arriving_at": "2026-12-22T09:15:00",
+       "duration": "PT1H15M",
+       "marketing_carrier_flight_number": "0016",
+       "marketing_carrier": {
+        "iata_code": "NH",
+        "name": "ANA"
+       },
+       "origin": {
+        "iata_code": "ITM",
+        "name": "Osaka International Airport"
+       },
+       "destination": {
+        "iata_code": "HND",
+        "name": "Haneda Airport"
+       }
+      },
+      {
+       "departing_at": "2026-12-22T15:55:00",
+       "arriving_at": "2026-12-22T18:35:00",
+       "duration": "PT2H40M",
+       "marketing_carrier_flight_number": "0865",
+       "marketing_carrier": {
+        "iata_code": "NH",
+        "name": "ANA"
+       },
+       "origin": {
+        "iata_code": "HND",
+        "name": "Haneda Airport"
+       },
+       "destination": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "off_0355IWmAN8uOnPq92AxnfN",
+   "total_amount": "447.70",
+   "total_currency": "USD",
+   "expires_at": "2026-11-28T08:16:13.231958Z",
+   "live_mode": false,
+   "owner": {
+    "iata_code": "OZ",
+    "name": "Asiana Airlines"
+   },
+   "slices": [
+    {
+     "duration": "PT1H50M",
+     "origin": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "destination": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-20T07:55:00",
+       "arriving_at": "2026-12-20T09:45:00",
+       "duration": "PT1H50M",
+       "marketing_carrier_flight_number": "1145",
+       "marketing_carrier": {
+        "iata_code": "OZ",
+        "name": "Asiana Airlines"
+       },
+       "origin": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       },
+       "destination": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       }
+      }
+     ]
+    },
+    {
+     "duration": "PT2H",
+     "origin": {
+      "iata_code": "UKB",
+      "name": "Kobe Airport"
+     },
+     "destination": {
+      "iata_code": "ICN",
+      "name": "Incheon International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-22T15:00:00",
+       "arriving_at": "2026-12-22T17:00:00",
+       "duration": "PT2H",
+       "marketing_carrier_flight_number": "1153",
+       "marketing_carrier": {
+        "iata_code": "OZ",
+        "name": "Asiana Airlines"
+       },
+       "origin": {
+        "iata_code": "UKB",
+        "name": "Kobe Airport"
+       },
+       "destination": {
+        "iata_code": "ICN",
+        "name": "Incheon International Airport"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "off_0355IWhok5H3V4kynYCJs0",
+   "total_amount": "85.05",
+   "total_currency": "USD",
+   "expires_at": "2026-11-28T07:46:13.233141Z",
+   "live_mode": false,
+   "owner": {
+    "iata_code": "ZZ",
+    "name": "Duffel Airways"
+   },
+   "slices": [
+    {
+     "duration": "PT1H39M",
+     "origin": {
+      "iata_code": "SSN",
+      "name": "Seoul Air Base"
+     },
+     "destination": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-20T14:42:00",
+       "arriving_at": "2026-12-20T16:21:00",
+       "duration": "PT1H39M",
+       "marketing_carrier_flight_number": "9070",
+       "marketing_carrier": {
+        "iata_code": "ZZ",
+        "name": "Duffel Airways"
+       },
+       "origin": {
+        "iata_code": "SSN",
+        "name": "Seoul Air Base"
+       },
+       "destination": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       }
+      }
+     ]
+    },
+    {
+     "duration": "PT1H39M",
+     "origin": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "destination": {
+      "iata_code": "SSN",
+      "name": "Seoul Air Base"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-22T16:15:00",
+       "arriving_at": "2026-12-22T17:54:00",
+       "duration": "PT1H39M",
+       "marketing_carrier_flight_number": "9070",
+       "marketing_carrier": {
+        "iata_code": "ZZ",
+        "name": "Duffel Airways"
+       },
+       "origin": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       },
+       "destination": {
+        "iata_code": "SSN",
+        "name": "Seoul Air Base"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "off_0355IWmAN8uOnPq92Axnd2",
+   "total_amount": "208.20",
+   "total_currency": "USD",
+   "expires_at": "2026-11-28T08:16:13.231958Z",
+   "live_mode": false,
+   "owner": {
+    "iata_code": "HR",
+    "name": "Hahn Air"
+   },
+   "slices": [
+    {
+     "duration": "PT1H35M",
+     "origin": {
+      "iata_code": "ICN",
+      "name": "Incheon International Airport"
+     },
+     "destination": {
+      "iata_code": "UKB",
+      "name": "Kobe Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-20T13:35:00",
+       "arriving_at": "2026-12-20T15:10:00",
+       "duration": "PT1H35M",
+       "marketing_carrier_flight_number": "1621",
+       "marketing_carrier": {
+        "iata_code": "7C",
+        "name": "Jeju Air"
+       },
+       "origin": {
+        "iata_code": "ICN",
+        "name": "Incheon International Airport"
+       },
+       "destination": {
+        "iata_code": "UKB",
+        "name": "Kobe Airport"
+       }
+      }
+     ]
+    },
+    {
+     "duration": "PT1H55M",
+     "origin": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "destination": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-22T10:45:00",
+       "arriving_at": "2026-12-22T12:40:00",
+       "duration": "PT1H55M",
+       "marketing_carrier_flight_number": "1326",
+       "marketing_carrier": {
+        "iata_code": "7C",
+        "name": "Jeju Air"
+       },
+       "origin": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       },
+       "destination": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "off_0355IWmAN8uOnPq92Axnh0",
+   "total_amount": "470.30",
+   "total_currency": "USD",
+   "expires_at": "2026-11-28T08:16:13.231958Z",
+   "live_mode": false,
+   "owner": {
+    "iata_code": "JL",
+    "name": "JAL"
+   },
+   "slices": [
+    {
+     "duration": "PT1H50M",
+     "origin": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "destination": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-20T16:50:00",
+       "arriving_at": "2026-12-20T18:40:00",
+       "duration": "PT1H50M",
+       "marketing_carrier_flight_number": "5150",
+       "marketing_carrier": {
+        "iata_code": "JL",
+        "name": "JAL"
+       },
+       "origin": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       },
+       "destination": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       }
+      }
+     ]
+    },
+    {
+     "duration": "PT2H5M",
+     "origin": {
+      "iata_code": "KIX",
+      "name": "Kansai International Airport"
+     },
+     "destination": {
+      "iata_code": "GMP",
+      "name": "Gimpo International Airport"
+     },
+     "segments": [
+      {
+       "departing_at": "2026-12-22T12:30:00",
+       "arriving_at": "2026-12-22T14:35:00",
+       "duration": "PT2H5M",
+       "marketing_carrier_flight_number": "5247",
+       "marketing_carrier": {
+        "iata_code": "JL",
+        "name": "JAL"
+       },
+       "origin": {
+        "iata_code": "KIX",
+        "name": "Kansai International Airport"
+       },
+       "destination": {
+        "iata_code": "GMP",
+        "name": "Gimpo International Airport"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "meta": {
+  "limit": 100,
+  "after": null
+ }
+}
